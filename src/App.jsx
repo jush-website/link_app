@@ -303,17 +303,6 @@ export default function App() {
               </svg>
               使用 Google 帳號登入
             </button>
-
-            <button 
-              onClick={() => {
-                localStorage.setItem('guest_mode', 'true'); // 記憶訪客選擇
-                setShowMainApp(true);
-              }} 
-              className="group w-full flex items-center justify-center gap-2 text-slate-500 hover:text-indigo-600 px-6 py-3 rounded-2xl font-medium transition-colors"
-            >
-              先以訪客身分體驗
-              <ArrowRight size={16} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-            </button>
           </div>
         </div>
       </div>
