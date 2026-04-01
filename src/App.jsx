@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, Folder, FolderPlus, ArrowLeft, MoveRight, FolderOpen } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
@@ -24,6 +24,7 @@ const appId = 'my-shortcut-app';
 export default function App() {
   // 捷徑資料
   const [links, setLinks] = useState([]);
+  const [folders, setFolders] = useState([]); // 新增資料夾狀態
   
   // 錯誤訊息狀態
   const [errorMessage, setErrorMessage] = useState("");
@@ -42,6 +43,13 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('add'); // 'add' 或 'edit'
   
+  // 資料夾與移動相關狀態
+  const [currentFolderId, setCurrentFolderId] = useState(null); // null 代表首頁
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [folderFormData, setFolderFormData] = useState({ name: '' });
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [linkToMove, setLinkToMove] = useState(null);
+
   // 表單輸入狀態
   const [currentId, setCurrentId] = useState(null);
   const [formData, setFormData] = useState({ title: '', url: '', description: '' });
@@ -85,10 +93,10 @@ export default function App() {
     if (!user) return;
 
     try {
-      // 使用安全的路徑結構來儲存使用者的專屬資料
+      // 監聽捷徑資料
       const linksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'links');
       
-      const unsubscribe = onSnapshot(linksRef, (snapshot) => {
+      const unsubscribeLinks = onSnapshot(linksRef, (snapshot) => {
         const fetchedLinks = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -103,7 +111,23 @@ export default function App() {
         }
       });
 
-      return () => unsubscribe();
+      // 監聽資料夾資料
+      const foldersRef = collection(db, 'artifacts', appId, 'users', user.uid, 'folders');
+      const unsubscribeFolders = onSnapshot(foldersRef, (snapshot) => {
+        const fetchedFolders = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        fetchedFolders.sort((a, b) => b.createdAt - a.createdAt);
+        setFolders(fetchedFolders);
+      }, (error) => {
+        console.error("讀取資料夾失敗:", error);
+      });
+
+      return () => {
+        unsubscribeLinks();
+        unsubscribeFolders();
+      };
     } catch (error) {
       console.error("Firestore 監聽設定失敗:", error);
     }
@@ -194,6 +218,7 @@ export default function App() {
           title: formData.title.trim(),
           url: finalUrl,
           description: formData.description.trim(),
+          folderId: currentFolderId || null, // 加入當前資料夾 ID
           createdAt: Date.now()
         };
         await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'links'), newLink);
@@ -221,6 +246,54 @@ export default function App() {
     } catch (error) {
       console.error("刪除失敗:", error);
       setErrorMessage("刪除失敗，請檢查權限或網路連線。");
+    }
+  };
+
+  // --- 資料夾與移動相關操作 ---
+  const handleSaveFolder = async () => {
+    if (!folderFormData.name.trim() || !user) return;
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'folders'), {
+        name: folderFormData.name.trim(),
+        createdAt: Date.now()
+      });
+      setIsFolderModalOpen(false);
+      setFolderFormData({ name: '' });
+    } catch (error) {
+      console.error("新增資料夾失敗:", error);
+      setErrorMessage("新增資料夾失敗，請稍後再試。");
+    }
+  };
+
+  const handleDeleteFolder = async (id, e) => {
+    e.stopPropagation();
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'folders', id));
+      if (currentFolderId === id) setCurrentFolderId(null);
+    } catch (error) {
+      console.error("刪除資料夾失敗:", error);
+      setErrorMessage("刪除資料夾失敗。");
+    }
+  };
+
+  const openMoveModal = (link, e) => {
+    e.stopPropagation();
+    setLinkToMove(link);
+    setIsMoveModalOpen(true);
+  };
+
+  const handleMoveLink = async (targetFolderId) => {
+    if (!linkToMove || !user) return;
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'links', linkToMove.id), {
+        folderId: targetFolderId
+      });
+      setIsMoveModalOpen(false);
+      setLinkToMove(null);
+    } catch (error) {
+      console.error("移動失敗:", error);
+      setErrorMessage("移動捷徑失敗。");
     }
   };
 
@@ -303,6 +376,17 @@ export default function App() {
               </svg>
               使用 Google 帳號登入
             </button>
+
+            <button 
+              onClick={() => {
+                localStorage.setItem('guest_mode', 'true'); // 記憶訪客選擇
+                setShowMainApp(true);
+              }} 
+              className="group w-full flex items-center justify-center gap-2 text-slate-500 hover:text-indigo-600 px-6 py-3 rounded-2xl font-medium transition-colors"
+            >
+              先以訪客身分體驗
+              <ArrowRight size={16} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+            </button>
           </div>
         </div>
       </div>
@@ -323,8 +407,27 @@ export default function App() {
         <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-6 mb-10">
           <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">我的常用捷徑</h1>
-              <p className="text-slate-500 font-medium">目前共收錄了 {links.length} 個實用連結</p>
+              {currentFolderId ? (
+                <div className="flex items-center gap-3 mb-2 animate-in slide-in-from-left-4 duration-300">
+                  <button 
+                    onClick={() => setCurrentFolderId(null)}
+                    className="p-2 -ml-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                  >
+                    <ArrowLeft size={24} />
+                  </button>
+                  <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+                    {folders.find(f => f.id === currentFolderId)?.name || '未命名資料夾'}
+                  </h1>
+                </div>
+              ) : (
+                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">我的常用捷徑</h1>
+              )}
+              <p className="text-slate-500 font-medium">
+                {currentFolderId 
+                  ? `此資料夾共收錄了 ${links.filter(l => l.folderId === currentFolderId).length} 個連結`
+                  : `目前共收錄了 ${folders.length} 個資料夾與 ${links.length} 個連結`
+                }
+              </p>
             </div>
             
             {/* 使用者登入狀態區塊 */}
@@ -361,82 +464,145 @@ export default function App() {
               )}
             </div>
           </div>
-          <button 
-            onClick={openAddModal}
-            className="group flex items-center justify-center gap-2 bg-slate-900 text-white px-6 py-3 sm:py-2.5 rounded-full font-medium hover:bg-indigo-600 transition-all duration-300 shadow-lg shadow-slate-900/20 hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
-            <span>新增捷徑</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {currentFolderId === null && (
+              <button 
+                onClick={() => setIsFolderModalOpen(true)}
+                className="flex items-center justify-center gap-2 bg-white text-slate-700 border border-slate-200 px-5 py-3 sm:py-2.5 rounded-full font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:translate-y-0"
+              >
+                <FolderPlus size={18} />
+                <span className="hidden sm:inline">新增資料夾</span>
+              </button>
+            )}
+            <button 
+              onClick={openAddModal}
+              className="group flex items-center justify-center gap-2 bg-slate-900 text-white px-6 py-3 sm:py-2.5 rounded-full font-medium hover:bg-indigo-600 transition-all duration-300 shadow-lg shadow-slate-900/20 hover:shadow-indigo-500/30 hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+              <span>新增捷徑</span>
+            </button>
+          </div>
         </header>
 
-        {/* 捷徑卡片網格 */}
-        {links.length === 0 ? (
-          <div className="text-center py-20 bg-white/50 rounded-3xl border border-slate-100 border-dashed">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4">
-              <Bookmark size={28} />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-700 mb-1">目前沒有任何捷徑</h3>
-            <p className="text-slate-500">點擊右上角的按鈕開始新增您的第一個連結吧！</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {links.map(link => (
-              <div 
-                key={link.id} 
-                className="group relative bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-200 transition-all duration-300 hover:-translate-y-1"
-              >
-                {/* 編輯/刪除按鈕 */}
-                <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-                  <button 
-                    onClick={(e) => openEditModal(link, e)}
-                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-indigo-100 transition-all"
-                    title="編輯"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    onClick={(e) => handleDelete(link.id, e)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all"
-                    title="刪除"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                {/* 卡片主體 */}
-                <a 
-                  href={link.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="block outline-none"
+        {/* 資料夾區塊 (僅在首頁顯示) */}
+        {currentFolderId === null && folders.length > 0 && (
+          <div className="mb-10">
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 px-2">資料夾</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {folders.map(folder => (
+                <div 
+                  key={folder.id}
+                  onClick={() => setCurrentFolderId(folder.id)}
+                  className="group cursor-pointer bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all duration-200 hover:-translate-y-1 relative"
                 >
-                  <div className="flex items-start gap-4">
-                    {/* 圖示區塊 */}
-                    <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-300 transform group-hover:rotate-3 group-hover:scale-105">
-                      <Globe size={22} />
-                    </div>
-                    
-                    {/* 內容區塊 */}
-                    <div className="flex-1 min-w-0 pr-14">
-                      <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
-                        {link.title}
-                      </h3>
-                      <p className="text-sm text-indigo-500/80 truncate mt-0.5 group-hover:text-indigo-500 transition-colors">
-                        {link.url.replace(/^https?:\/\//, '')}
-                      </p>
-                      {link.description && (
-                        <p className="text-sm text-slate-500 mt-2.5 line-clamp-2 leading-relaxed">
-                          {link.description}
-                        </p>
-                      )}
-                    </div>
+                  <div className="absolute top-2 right-2">
+                    <button 
+                      onClick={(e) => handleDeleteFolder(folder.id, e)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="刪除資料夾"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                </a>
-              </div>
-            ))}
+                  <FolderOpen className="text-indigo-500 mb-3 group-hover:scale-110 transition-transform" size={32} />
+                  <h4 className="font-bold text-slate-800 truncate">{folder.name}</h4>
+                  <p className="text-xs text-slate-500 mt-1">{links.filter(l => l.folderId === folder.id).length} 個項目</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        {/* 捷徑卡片網格 */}
+        <div className="mb-4">
+          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 px-2">
+            {currentFolderId === null ? "所有捷徑" : "資料夾內容"}
+          </h3>
+          {(() => {
+            // 過濾要顯示的連結：如果是首頁，顯示沒有 folderId 的連結；否則顯示對應 folderId 的連結
+            const displayedLinks = currentFolderId === null 
+              ? links.filter(l => !l.folderId) 
+              : links.filter(l => l.folderId === currentFolderId);
+            
+            if (displayedLinks.length === 0) {
+              return (
+                <div className="text-center py-20 bg-white/50 rounded-3xl border border-slate-100 border-dashed">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4">
+                    <Bookmark size={28} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-700 mb-1">這裡還沒有任何捷徑</h3>
+                  <p className="text-slate-500">點擊右上角的按鈕開始新增您的連結吧！</p>
+                </div>
+              );
+            }
+            
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {displayedLinks.map(link => (
+                  <div 
+                    key={link.id} 
+                    className="group relative bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-200 transition-all duration-300 hover:-translate-y-1"
+                  >
+                    {/* 編輯/移動/刪除按鈕 */}
+                    <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+                      <button 
+                        onClick={(e) => openMoveModal(link, e)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-indigo-100 transition-all"
+                        title="移動至..."
+                      >
+                        <MoveRight size={16} />
+                      </button>
+                      <button 
+                        onClick={(e) => openEditModal(link, e)}
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-indigo-100 transition-all"
+                        title="編輯"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={(e) => handleDelete(link.id, e)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded-lg shadow-sm border border-transparent hover:border-rose-100 transition-all"
+                        title="刪除"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    {/* 卡片主體 */}
+                    <a 
+                      href={link.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="block outline-none"
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* 圖示區塊 */}
+                        <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-300 transform group-hover:rotate-3 group-hover:scale-105">
+                          <Globe size={22} />
+                        </div>
+                        
+                        {/* 內容區塊 */}
+                        <div className="flex-1 min-w-0 pr-24">
+                          <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">
+                            {link.title}
+                          </h3>
+                          <p className="text-sm text-indigo-500/80 truncate mt-0.5 group-hover:text-indigo-500 transition-colors">
+                            {link.url.replace(/^https?:\/\//, '')}
+                          </p>
+                          {link.description && (
+                            <p className="text-sm text-slate-500 mt-2.5 line-clamp-2 leading-relaxed">
+                              {link.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </a>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
       </div>
 
       {/* 新增/修改彈出視窗 (Modal) */}
@@ -532,6 +698,83 @@ export default function App() {
               >
                 {modalMode === 'add' ? '儲存捷徑' : '確認修改'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 新增資料夾彈出視窗 */}
+      {isFolderModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" onClick={() => setIsFolderModalOpen(false)}>
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"></div>
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <FolderPlus size={20} className="text-indigo-500" />
+                新增資料夾
+              </h2>
+              <button onClick={() => setIsFolderModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">資料夾名稱 <span className="text-rose-500">*</span></label>
+              <input
+                type="text"
+                value={folderFormData.name}
+                onChange={(e) => setFolderFormData({ name: e.target.value })}
+                placeholder="例如：設計資源、工作專案..."
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all duration-200 text-slate-800 font-medium placeholder:text-slate-400"
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveFolder()}
+              />
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <button onClick={() => setIsFolderModalOpen(false)} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 transition-colors">取消</button>
+              <button
+                onClick={handleSaveFolder}
+                disabled={!folderFormData.name.trim()}
+                className="px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all duration-200"
+              >
+                建立
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 移動捷徑彈出視窗 */}
+      {isMoveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" onClick={() => setIsMoveModalOpen(false)}>
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"></div>
+          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <MoveRight size={20} className="text-indigo-500" />
+                移動捷徑
+              </h2>
+              <button onClick={() => setIsMoveModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 max-h-64 overflow-y-auto">
+              <div 
+                onClick={() => handleMoveLink(null)}
+                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${linkToMove?.folderId == null ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`}
+              >
+                <Globe size={18} className={linkToMove?.folderId == null ? 'text-indigo-600' : 'text-slate-400'} />
+                <span className="font-medium">首頁 (無分類)</span>
+              </div>
+              {folders.map(folder => (
+                <div 
+                  key={folder.id}
+                  onClick={() => handleMoveLink(folder.id)}
+                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors mt-1 ${linkToMove?.folderId === folder.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-700'}`}
+                >
+                  <Folder size={18} className={linkToMove?.folderId === folder.id ? 'text-indigo-600' : 'text-slate-400'} />
+                  <span className="font-medium">{folder.name}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
