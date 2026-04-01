@@ -168,6 +168,12 @@ export default function App() {
 
   const closeModal = () => setIsModalOpen(false);
 
+  // 補回遺失的表單輸入處理函數！
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
   const handleSave = async () => {
     // 2. 加入 ?. (Optional Chaining) 安全防護，避免字串未定義時崩潰
     if (!formData.title?.trim() || !formData.url?.trim() || !user) return;
