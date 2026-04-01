@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, Folder, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu, Loader2 } from 'lucide-react';
+// 1. 移除 Loader2 的匯入，避免版本不支援導致白屏
+import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, Folder, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
@@ -168,7 +169,8 @@ export default function App() {
   const closeModal = () => setIsModalOpen(false);
 
   const handleSave = async () => {
-    if (!formData.title.trim() || !formData.url.trim() || !user) return;
+    // 2. 加入 ?. (Optional Chaining) 安全防護，避免字串未定義時崩潰
+    if (!formData.title?.trim() || !formData.url?.trim() || !user) return;
     setIsSaving(true);
 
     let finalUrl = formData.url.trim();
@@ -212,7 +214,8 @@ export default function App() {
 
   // --- 資料夾 CRUD ---
   const handleSaveFolder = async () => {
-    if (!folderFormData.name.trim() || !user) return;
+    // 加入 ?. 安全防護
+    if (!folderFormData.name?.trim() || !user) return;
     setIsSaving(true);
     try {
       await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'folders'), {
@@ -412,7 +415,7 @@ export default function App() {
 
   // --- 畫面 2：主應用程式 ---
   return (
-    <div className="flex h-[100dvh] bg-[#F8FAFC] text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden animate-in fade-in duration-500">
+    <div className="flex h-[100dvh] bg-white text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden animate-in fade-in duration-500">
       <ErrorToast />
 
       {/* --- 左側導覽列 (側邊欄) --- */}
@@ -498,9 +501,7 @@ export default function App() {
       </aside>
 
       {/* --- 右側主畫面區塊 --- */}
-      <main className="flex-1 h-full overflow-y-auto relative bg-[#F8FAFC]">
-        <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-10 pointer-events-none"></div>
-
+      <main className="flex-1 h-full overflow-y-auto relative bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-5 sm:pt-10 relative z-10 pb-32">
           
           {/* 極簡單行頂部導覽列 */}
@@ -660,9 +661,10 @@ export default function App() {
               </div>
             </div>
             <div className="px-6 py-4 bg-slate-50 flex items-center justify-end gap-3">
-              <button type="button" onClick={closeModal} disabled={isSaving} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 disabled:opacity-50">取消</button>
-              <button type="button" onClick={handleSave} disabled={!formData.title.trim() || !formData.url.trim() || isSaving} className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md">
-                {isSaving ? <Loader2 size={18} className="animate-spin" /> : (modalMode === 'add' ? '儲存' : '修改')}
+              <button type="button" onClick={closeModal} disabled={isSaving} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 disabled:opacity-50 transition-colors">取消</button>
+              {/* 3. 將按鈕內的 Loader2 換成純 CSS 動畫圈圈，並為按鈕加入安全防護與固定寬度 min-w-[96px] */}
+              <button type="button" onClick={handleSave} disabled={!formData.title?.trim() || !formData.url?.trim() || isSaving} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md min-w-[96px]">
+                {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : (modalMode === 'add' ? '儲存' : '修改')}
               </button>
             </div>
           </div>
@@ -686,9 +688,10 @@ export default function App() {
               <input type="text" value={folderFormData.name} onChange={(e) => setFolderFormData({ name: e.target.value })} placeholder="例如：設計資源、工作專案..." className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium" autoFocus onKeyDown={(e) => e.key === 'Enter' && !isSaving && handleSaveFolder()} />
             </div>
             <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3">
-              <button onClick={() => setIsFolderModalOpen(false)} disabled={isSaving} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 disabled:opacity-50">取消</button>
-              <button onClick={handleSaveFolder} disabled={!folderFormData.name.trim() || isSaving} className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all">
-                {isSaving ? <Loader2 size={18} className="animate-spin" /> : '建立'}
+              <button onClick={() => setIsFolderModalOpen(false)} disabled={isSaving} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 disabled:opacity-50 transition-colors">取消</button>
+              {/* 這裡同樣換成原生 CSS 圈圈並加入安全防護 */}
+              <button onClick={handleSaveFolder} disabled={!folderFormData.name?.trim() || isSaving} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all min-w-[96px]">
+                {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : '建立'}
               </button>
             </div>
           </div>
