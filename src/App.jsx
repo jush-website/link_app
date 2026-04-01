@@ -48,30 +48,35 @@ export default function App() {
 
   // 處理 Firebase 驗證狀態
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // 1. 已經有使用者登入狀態 (包含重整後自動還原的 Google 登入或匿名登入)
+        setUser(currentUser);
+        setIsAuthLoaded(true);
+        
+        // 判斷是否要自動進入主畫面
+        if (!currentUser.isAnonymous) {
+          setShowMainApp(true);
+        } else if (localStorage.getItem('guest_mode') === 'true') {
+          // 記錄過訪客模式的匿名使用者，重整後也直接進入主畫面
+          setShowMainApp(true);
         }
-      } catch (error) {
-        console.error("Auth init error:", error);
-        setErrorMessage("無法連線至驗證伺服器，您目前處於離線體驗模式。");
-        setIsAuthLoaded(true); // 如果連線失敗，也要強制解除載入畫面
-      }
-    };
-    initAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthLoaded(true); // 伺服器回應了，解除載入畫面
-      
-      // 如果使用者已經正式登入過 (非匿名)，則自動進入主畫面
-      if (currentUser && !currentUser.isAnonymous) {
-        setShowMainApp(true);
+      } else {
+        // 2. 確定完全沒有登入狀態，才進行初始的匿名登入 (避免覆蓋原本的 Google 登入)
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (error) {
+          console.error("Auth init error:", error);
+          setErrorMessage("無法連線至驗證伺服器，您目前處於離線體驗模式。");
+          setIsAuthLoaded(true);
+        }
       }
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -150,6 +155,7 @@ export default function App() {
       setErrorMessage("");
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
+      localStorage.removeItem('guest_mode'); // 正式登入後清除訪客紀錄
       setShowMainApp(true); // 登入成功後進入主畫面
     } catch (error) {
       console.error("Google Login Error:", error);
@@ -164,9 +170,9 @@ export default function App() {
   // 登出處理
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      localStorage.removeItem('guest_mode'); // 清除訪客紀錄
       setShowMainApp(false); // 退回登入畫面
-      await signInAnonymously(auth); // 確保退回預設的匿名登入狀態
+      await signOut(auth); // 登出後 onAuthStateChanged 會自動觸發新的匿名登入
     } catch (error) {
       console.error("Logout Error:", error);
     }
@@ -299,7 +305,10 @@ export default function App() {
             </button>
 
             <button 
-              onClick={() => setShowMainApp(true)} 
+              onClick={() => {
+                localStorage.setItem('guest_mode', 'true'); // 記憶訪客選擇
+                setShowMainApp(true);
+              }} 
               className="group w-full flex items-center justify-center gap-2 text-slate-500 hover:text-indigo-600 px-6 py-3 rounded-2xl font-medium transition-colors"
             >
               先以訪客身分體驗
