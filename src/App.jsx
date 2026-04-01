@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark } from 'lucide-react';
 
 export default function App() {
   // 預設的捷徑資料 (已清空)
   const [links, setLinks] = useState([]);
+
+  // 樣式載入狀態
+  const [isStylesLoaded, setIsStylesLoaded] = useState(false);
 
   // 控制 Modal 狀態
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,6 +76,31 @@ export default function App() {
     e.stopPropagation(); // 避免觸發外層的連結跳轉
     setLinks(links.filter(link => link.id !== id));
   };
+
+  // 動態載入 Tailwind CSS 樣式
+  useEffect(() => {
+    if (window.tailwind) {
+      setIsStylesLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.tailwindcss.com';
+    script.onload = () => setIsStylesLoaded(true);
+    document.head.appendChild(script);
+  }, []);
+
+  // 在樣式載入完成前，顯示不依賴 Tailwind 的純內聯樣式 (Inline-style) 載入畫面
+  if (!isStylesLoaded) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ marginTop: '20px', color: '#475569', fontWeight: 500, letterSpacing: '0.5px' }}>系統介面載入中...</p>
+        <style>
+          {`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}
+        </style>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-20">
