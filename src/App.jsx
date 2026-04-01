@@ -4,25 +4,22 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
-// 強化版：初始化 Firebase (加入安全防護，避免空設定檔導致白畫面崩潰)
-const getSafeFirebaseConfig = () => {
-  try {
-    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-      const config = JSON.parse(__firebase_config);
-      // 確保解析出來的不是空物件
-      if (Object.keys(config).length > 0) return config;
-    }
-  } catch (error) {
-    console.warn("Firebase config 解析失敗，將使用備用設定", error);
-  }
-  // 備用防崩潰設定 (Fallback)
-  return { apiKey: "demo-key", projectId: "demo-project", appId: "1:123456:web:demo" };
+// 1. 刪除原本的 getSafeFirebaseConfig 函數，直接貼上您從 Firebase 控制台複製的設定檔
+const firebaseConfig = {
+  apiKey: "AIzaSyBoJ_uCgQhXi2YvleASpBGl4G8E5g8nIUM",
+  authDomain: "link-4339d.firebaseapp.com",
+  projectId: "link-4339d",
+  storageBucket: "link-4339d.firebasestorage.app",
+  messagingSenderId: "1033240032653",
+  appId: "1:1033240032653:web:949e87e2a492bfbfae79c4",
+  measurementId: "G-9LVYQ90N1T"
 };
 
-const app = initializeApp(getSafeFirebaseConfig());
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// 2. 給您的應用程式一個固定的 ID (用作資料庫資料夾名稱)
+const appId = 'my-shortcut-app';
 
 export default function App() {
   // 捷徑資料
