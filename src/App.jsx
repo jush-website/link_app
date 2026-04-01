@@ -34,6 +34,9 @@ export default function App() {
   // 樣式與畫面狀態
   const [isStylesLoaded, setIsStylesLoaded] = useState(false);
   const [showMainApp, setShowMainApp] = useState(false);
+  
+  // 新增：追蹤 Firebase 驗證是否回應完畢 (無論成功或失敗)
+  const [isAuthLoaded, setIsAuthLoaded] = useState(false);
 
   // 登入狀態管理
   const [user, setUser] = useState(null);
@@ -58,12 +61,15 @@ export default function App() {
       } catch (error) {
         console.error("Auth init error:", error);
         setErrorMessage("無法連線至驗證伺服器，您目前處於離線體驗模式。");
+        setIsAuthLoaded(true); // 如果連線失敗，也要強制解除載入畫面
       }
     };
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setIsAuthLoaded(true); // 伺服器回應了，解除載入畫面
+      
       // 如果使用者已經正式登入過 (非匿名)，則自動進入主畫面
       if (currentUser && !currentUser.isAnonymous) {
         setShowMainApp(true);
@@ -216,7 +222,8 @@ export default function App() {
   };
 
   // 在樣式或 Firebase 載入完成前，顯示不依賴 Tailwind 的純內聯樣式載入畫面
-  if (!isStylesLoaded || !user) {
+  // 將 !user 改為 !isAuthLoaded
+  if (!isStylesLoaded || !isAuthLoaded) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
