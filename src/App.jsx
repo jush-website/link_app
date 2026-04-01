@@ -4,15 +4,22 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 
-// 初始化 Firebase (安全獲取環境變數)
-const getFirebaseConfig = () => {
+// 強化版：初始化 Firebase (加入安全防護，避免空設定檔導致白畫面崩潰)
+const getSafeFirebaseConfig = () => {
   try {
-    return typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+      const config = JSON.parse(__firebase_config);
+      // 確保解析出來的不是空物件
+      if (Object.keys(config).length > 0) return config;
+    }
   } catch (error) {
-    return {};
+    console.warn("Firebase config 解析失敗，將使用備用設定", error);
   }
+  // 備用防崩潰設定 (Fallback)
+  return { apiKey: "demo-key", projectId: "demo-project", appId: "1:123456:web:demo" };
 };
-const app = initializeApp(getFirebaseConfig());
+
+const app = initializeApp(getSafeFirebaseConfig());
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -50,6 +57,7 @@ export default function App() {
         }
       } catch (error) {
         console.error("Auth init error:", error);
+        setErrorMessage("無法連線至驗證伺服器，您目前處於離線體驗模式。");
       }
     };
     initAuth();
@@ -68,26 +76,29 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    // 使用安全的路徑結構來儲存使用者的專屬資料
-    const linksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'links');
-    
-    const unsubscribe = onSnapshot(linksRef, (snapshot) => {
-      const fetchedLinks = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // 在記憶體中進行排序 (依建立時間反序，最新的在前面)
-      fetchedLinks.sort((a, b) => b.createdAt - a.createdAt);
-      setLinks(fetchedLinks);
-    }, (error) => {
-      console.error("讀取資料失敗:", error);
-      // 只有在進入主畫面後才顯示讀取錯誤，避免在登入畫面干擾
-      if (showMainApp) {
-        setErrorMessage("無法讀取資料，請檢查資料庫權限設定。");
-      }
-    });
+    try {
+      // 使用安全的路徑結構來儲存使用者的專屬資料
+      const linksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'links');
+      
+      const unsubscribe = onSnapshot(linksRef, (snapshot) => {
+        const fetchedLinks = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // 在記憶體中進行排序 (依建立時間反序，最新的在前面)
+        fetchedLinks.sort((a, b) => b.createdAt - a.createdAt);
+        setLinks(fetchedLinks);
+      }, (error) => {
+        console.error("讀取資料失敗:", error);
+        if (showMainApp) {
+          setErrorMessage("無法讀取資料，請檢查資料庫權限設定或網路連線。");
+        }
+      });
 
-    return () => unsubscribe();
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Firestore 監聽設定失敗:", error);
+    }
   }, [user, showMainApp]);
 
   // 動態載入 Tailwind CSS 樣式
@@ -99,6 +110,10 @@ export default function App() {
     const script = document.createElement('script');
     script.src = 'https://cdn.tailwindcss.com';
     script.onload = () => setIsStylesLoaded(true);
+    script.onerror = () => {
+      console.error("Tailwind 載入失敗");
+      setIsStylesLoaded(true); // 避免卡在載入畫面
+    };
     document.head.appendChild(script);
   }, []);
 
@@ -213,6 +228,24 @@ export default function App() {
     );
   }
 
+  // 共用的錯誤提示元件
+  const ErrorToast = () => (
+    errorMessage && (
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg px-4 animate-in slide-in-from-top-4 fade-in duration-300">
+        <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-lg shadow-rose-500/10 flex items-start gap-3">
+          <AlertCircle className="text-rose-500 flex-shrink-0 mt-0.5" size={20} />
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-rose-800">系統提示</h3>
+            <p className="text-sm text-rose-600 mt-1 leading-relaxed">{errorMessage}</p>
+          </div>
+          <button onClick={() => setErrorMessage("")} className="text-rose-400 hover:text-rose-600 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+    )
+  );
+
   // --- 畫面 1：精緻登入畫面 ---
   if (!showMainApp) {
     return (
@@ -235,21 +268,7 @@ export default function App() {
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[40%] h-[40%] bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000"></div>
 
-        {/* 錯誤提示視窗 */}
-        {errorMessage && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg px-4 animate-in slide-in-from-top-4 fade-in duration-300">
-            <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-lg shadow-rose-500/10 flex items-start gap-3">
-              <AlertCircle className="text-rose-500 flex-shrink-0 mt-0.5" size={20} />
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-rose-800">系統提示</h3>
-                <p className="text-sm text-rose-600 mt-1 leading-relaxed">{errorMessage}</p>
-              </div>
-              <button onClick={() => setErrorMessage("")} className="text-rose-400 hover:text-rose-600 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-          </div>
-        )}
+        <ErrorToast />
 
         {/* 登入卡片本體 */}
         <div className="bg-white/80 backdrop-blur-xl p-8 sm:p-12 rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 border border-white max-w-md w-full relative z-10 text-center animate-in fade-in zoom-in-95 duration-500">
@@ -294,21 +313,7 @@ export default function App() {
       {/* 頂部裝飾背景 */}
       <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-10 pointer-events-none"></div>
 
-      {/* 錯誤提示視窗 */}
-      {errorMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg px-4 animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-lg shadow-rose-500/10 flex items-start gap-3">
-            <AlertCircle className="text-rose-500 flex-shrink-0 mt-0.5" size={20} />
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-rose-800">系統提示</h3>
-              <p className="text-sm text-rose-600 mt-1 leading-relaxed">{errorMessage}</p>
-            </div>
-            <button onClick={() => setErrorMessage("")} className="text-rose-400 hover:text-rose-600 transition-colors">
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-      )}
+      <ErrorToast />
 
       <div className="max-w-5xl mx-auto px-6 pt-16 relative z-10">
         
@@ -379,7 +384,7 @@ export default function App() {
                 key={link.id} 
                 className="group relative bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-200 transition-all duration-300 hover:-translate-y-1"
               >
-                {/* 編輯/刪除按鈕 (Hover 時顯示，放在絕對定位的右上角) */}
+                {/* 編輯/刪除按鈕 */}
                 <div className="absolute top-4 right-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
                   <button 
                     onClick={(e) => openEditModal(link, e)}
@@ -397,7 +402,7 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* 卡片主體 (點擊跳轉) */}
+                {/* 卡片主體 */}
                 <a 
                   href={link.url} 
                   target="_blank" 
