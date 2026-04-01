@@ -1,81 +1,94 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+
+// 初始化 Firebase (安全獲取環境變數)
+const getFirebaseConfig = () => {
+  try {
+    return typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+  } catch (error) {
+    return {};
+  }
+};
+const app = initializeApp(getFirebaseConfig());
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 export default function App() {
-  // 預設的捷徑資料 (已清空)
+  // 捷徑資料
   const [links, setLinks] = useState([]);
+  
+  // 錯誤訊息狀態
+  const [errorMessage, setErrorMessage] = useState("");
 
-  // 樣式載入狀態
+  // 樣式與畫面狀態
   const [isStylesLoaded, setIsStylesLoaded] = useState(false);
+  const [showMainApp, setShowMainApp] = useState(false);
 
-  // 控制 Modal 狀態
+  // 登入狀態管理
+  const [user, setUser] = useState(null);
+
+  // 控制 Modal (彈出視窗) 狀態
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('add'); // 'add' 或 'edit'
   
-  // 表單狀態
+  // 表單輸入狀態
   const [currentId, setCurrentId] = useState(null);
   const [formData, setFormData] = useState({ title: '', url: '', description: '' });
 
-  // 開啟新增視窗
-  const openAddModal = () => {
-    setModalMode('add');
-    setFormData({ title: '', url: '', description: '' });
-    setIsModalOpen(true);
-  };
+  // 處理 Firebase 驗證狀態
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth init error:", error);
+      }
+    };
+    initAuth();
 
-  // 開啟修改視窗
-  const openEditModal = (link, e) => {
-    e.stopPropagation(); // 避免觸發外層的連結跳轉
-    setModalMode('edit');
-    setCurrentId(link.id);
-    setFormData({ title: link.title, url: link.url, description: link.description || '' });
-    setIsModalOpen(true);
-  };
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      // 如果使用者已經正式登入過 (非匿名)，則自動進入主畫面
+      if (currentUser && !currentUser.isAnonymous) {
+        setShowMainApp(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
-  // 關閉視窗
-  const closeModal = () => {
-    setIsModalOpen(false);
-  };
+  // 監聽 Firestore 資料變化
+  useEffect(() => {
+    if (!user) return;
 
-  // 處理表單輸入
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+    // 使用安全的路徑結構來儲存使用者的專屬資料
+    const linksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'links');
+    
+    const unsubscribe = onSnapshot(linksRef, (snapshot) => {
+      const fetchedLinks = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // 在記憶體中進行排序 (依建立時間反序，最新的在前面)
+      fetchedLinks.sort((a, b) => b.createdAt - a.createdAt);
+      setLinks(fetchedLinks);
+    }, (error) => {
+      console.error("讀取資料失敗:", error);
+      // 只有在進入主畫面後才顯示讀取錯誤，避免在登入畫面干擾
+      if (showMainApp) {
+        setErrorMessage("無法讀取資料，請檢查資料庫權限設定。");
+      }
+    });
 
-  // 儲存捷徑 (新增或修改)
-  const handleSave = () => {
-    if (!formData.title.trim() || !formData.url.trim()) return;
-
-    // 簡單確保網址有 http/https 前綴
-    let finalUrl = formData.url.trim();
-    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-      finalUrl = 'https://' + finalUrl;
-    }
-
-    if (modalMode === 'add') {
-      const newLink = {
-        id: Date.now(),
-        title: formData.title.trim(),
-        url: finalUrl,
-        description: formData.description.trim(),
-      };
-      setLinks([newLink, ...links]);
-    } else {
-      setLinks(links.map(link => 
-        link.id === currentId 
-          ? { ...link, title: formData.title.trim(), url: finalUrl, description: formData.description.trim() }
-          : link
-      ));
-    }
-    closeModal();
-  };
-
-  // 刪除捷徑
-  const handleDelete = (id, e) => {
-    e.stopPropagation(); // 避免觸發外層的連結跳轉
-    setLinks(links.filter(link => link.id !== id));
-  };
+    return () => unsubscribe();
+  }, [user, showMainApp]);
 
   // 動態載入 Tailwind CSS 樣式
   useEffect(() => {
@@ -89,8 +102,106 @@ export default function App() {
     document.head.appendChild(script);
   }, []);
 
-  // 在樣式載入完成前，顯示不依賴 Tailwind 的純內聯樣式 (Inline-style) 載入畫面
-  if (!isStylesLoaded) {
+  // Modal 相關操作函數
+  const openAddModal = () => {
+    setModalMode('add');
+    setFormData({ title: '', url: '', description: '' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (link, e) => {
+    e.stopPropagation(); // 避免觸發外層的連結跳轉
+    setModalMode('edit');
+    setCurrentId(link.id);
+    setFormData({ title: link.title, url: link.url, description: link.description || '' });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Google 登入處理
+  const handleGoogleLogin = async () => {
+    try {
+      setErrorMessage("");
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      setShowMainApp(true); // 登入成功後進入主畫面
+    } catch (error) {
+      console.error("Google Login Error:", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        setErrorMessage("登入失敗：目前網域未經授權。請將此網址的網域加入 Firebase 控制台的「Authentication > 設定 > 已授權網域」清單中。");
+      } else if (error.code !== 'auth/popup-closed-by-user') {
+        setErrorMessage("登入過程中發生錯誤，請稍後再試。");
+      }
+    }
+  };
+
+  // 登出處理
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setShowMainApp(false); // 退回登入畫面
+      await signInAnonymously(auth); // 確保退回預設的匿名登入狀態
+    } catch (error) {
+      console.error("Logout Error:", error);
+    }
+  };
+
+  // 儲存捷徑 (新增或修改，寫入 Firestore)
+  const handleSave = async () => {
+    if (!formData.title.trim() || !formData.url.trim() || !user) return;
+
+    // 簡單確保網址有 http/https 前綴
+    let finalUrl = formData.url.trim();
+    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+      finalUrl = 'https://' + finalUrl;
+    }
+
+    try {
+      if (modalMode === 'add') {
+        const newLink = {
+          title: formData.title.trim(),
+          url: finalUrl,
+          description: formData.description.trim(),
+          createdAt: Date.now()
+        };
+        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'links'), newLink);
+      } else {
+        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'links', currentId), {
+          title: formData.title.trim(),
+          url: finalUrl,
+          description: formData.description.trim()
+        });
+      }
+      closeModal();
+    } catch (error) {
+      console.error("儲存失敗:", error);
+      setErrorMessage("儲存失敗，請檢查權限或網路連線。");
+    }
+  };
+
+  // 刪除捷徑 (從 Firestore 刪除)
+  const handleDelete = async (id, e) => {
+    e.stopPropagation(); // 避免觸發外層的連結跳轉
+    if (!user) return;
+    
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'links', id));
+    } catch (error) {
+      console.error("刪除失敗:", error);
+      setErrorMessage("刪除失敗，請檢查權限或網路連線。");
+    }
+  };
+
+  // 在樣式或 Firebase 載入完成前，顯示不依賴 Tailwind 的純內聯樣式載入畫面
+  if (!isStylesLoaded || !user) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -102,18 +213,146 @@ export default function App() {
     );
   }
 
+  // --- 畫面 1：精緻登入畫面 ---
+  if (!showMainApp) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden font-sans selection:bg-indigo-100 selection:text-indigo-900">
+        {/* 背景流體裝飾與動畫設定 */}
+        <style>
+          {`
+            @keyframes blob {
+              0% { transform: translate(0px, 0px) scale(1); }
+              33% { transform: translate(30px, -50px) scale(1.1); }
+              66% { transform: translate(-20px, 20px) scale(0.9); }
+              100% { transform: translate(0px, 0px) scale(1); }
+            }
+            .animate-blob { animation: blob 7s infinite; }
+            .animation-delay-2000 { animation-delay: 2s; }
+            .animation-delay-4000 { animation-delay: 4s; }
+          `}
+        </style>
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob"></div>
+        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-[-20%] left-[20%] w-[40%] h-[40%] bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000"></div>
+
+        {/* 錯誤提示視窗 */}
+        {errorMessage && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg px-4 animate-in slide-in-from-top-4 fade-in duration-300">
+            <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-lg shadow-rose-500/10 flex items-start gap-3">
+              <AlertCircle className="text-rose-500 flex-shrink-0 mt-0.5" size={20} />
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-rose-800">系統提示</h3>
+                <p className="text-sm text-rose-600 mt-1 leading-relaxed">{errorMessage}</p>
+              </div>
+              <button onClick={() => setErrorMessage("")} className="text-rose-400 hover:text-rose-600 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 登入卡片本體 */}
+        <div className="bg-white/80 backdrop-blur-xl p-8 sm:p-12 rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 border border-white max-w-md w-full relative z-10 text-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="w-20 h-20 mx-auto bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-8 transform -rotate-3 hover:rotate-0 transition-transform duration-300">
+            <Bookmark size={36} className="text-white" />
+          </div>
+          <h1 className="text-3xl font-extrabold text-slate-900 mb-3 tracking-tight">常用捷徑管理</h1>
+          <p className="text-slate-500 mb-10 font-medium leading-relaxed">
+            集中管理您最愛的網站連結。<br className="hidden sm:block" />登入以啟用跨裝置雲端同步。
+          </p>
+          
+          <div className="space-y-4">
+            <button 
+              onClick={handleGoogleLogin} 
+              className="group w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-100 hover:border-indigo-100 hover:bg-slate-50 px-6 py-3.5 rounded-2xl text-slate-700 font-bold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              使用 Google 帳號登入
+            </button>
+
+            <button 
+              onClick={() => setShowMainApp(true)} 
+              className="group w-full flex items-center justify-center gap-2 text-slate-500 hover:text-indigo-600 px-6 py-3 rounded-2xl font-medium transition-colors"
+            >
+              先以訪客身分體驗
+              <ArrowRight size={16} className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 畫面 2：主應用程式畫面 ---
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-20">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-20 animate-in fade-in duration-500">
       {/* 頂部裝飾背景 */}
       <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-10 pointer-events-none"></div>
+
+      {/* 錯誤提示視窗 */}
+      {errorMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg px-4 animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl shadow-lg shadow-rose-500/10 flex items-start gap-3">
+            <AlertCircle className="text-rose-500 flex-shrink-0 mt-0.5" size={20} />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-rose-800">系統提示</h3>
+              <p className="text-sm text-rose-600 mt-1 leading-relaxed">{errorMessage}</p>
+            </div>
+            <button onClick={() => setErrorMessage("")} className="text-rose-400 hover:text-rose-600 transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-5xl mx-auto px-6 pt-16 relative z-10">
         
         {/* 標題列 */}
         <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-6 mb-10">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">我的常用捷徑</h1>
-            <p className="text-slate-500 font-medium">目前共收錄了 {links.length} 個實用連結</p>
+          <div className="flex flex-col gap-4">
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">我的常用捷徑</h1>
+              <p className="text-slate-500 font-medium">目前共收錄了 {links.length} 個實用連結</p>
+            </div>
+            
+            {/* 使用者登入狀態區塊 */}
+            <div className="flex items-center">
+              {user && !user.isAnonymous ? (
+                <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="avatar" className="w-6 h-6 rounded-full" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                      <User size={14} />
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-slate-700">{user.displayName || '使用者'}</span>
+                  <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                  <button onClick={handleLogout} className="text-slate-400 hover:text-rose-500 transition-colors" title="登出">
+                    <LogOut size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={handleGoogleLogin}
+                  className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 hover:border-indigo-200 transition-all text-sm font-medium text-slate-700"
+                  title="登入以啟用雲端同步"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  升級為正式帳號
+                </button>
+              )}
+            </div>
           </div>
           <button 
             onClick={openAddModal}
@@ -197,13 +436,11 @@ export default function App() {
       {isModalOpen && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
-          // 外層遮罩：點擊這裡會觸發 closeModal
           onClick={closeModal}
         >
           {/* 半透明毛玻璃背景 */}
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"></div>
           
-          {/* 視窗本體：加入 e.stopPropagation() 確保點擊內部不會觸發關閉 */}
           <div 
             className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
