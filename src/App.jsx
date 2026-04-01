@@ -34,7 +34,7 @@ export default function App() {
 
   // 版面與選單狀態
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [currentFolderId, setCurrentFolderId] = useState(null); // null 代表首頁 (只顯示資料夾)
+  const [currentFolderId, setCurrentFolderId] = useState(null); // null 代表首頁
   
   // Modal 視窗狀態
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,7 +43,7 @@ export default function App() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [linkToMove, setLinkToMove] = useState(null);
   
-  // 儲存中狀態 (防止重複點擊與確保關閉)
+  // 儲存中狀態
   const [isSaving, setIsSaving] = useState(false);
 
   // 表單資料
@@ -51,10 +51,10 @@ export default function App() {
   const [formData, setFormData] = useState({ title: '', url: '', description: '' });
   const [folderFormData, setFolderFormData] = useState({ name: '' });
 
-  // 拖曳 (Drag & Drop) 狀態
+  // 拖曳狀態
   const [isDragging, setIsDragging] = useState(false);
   const [draggedLink, setDraggedLink] = useState(null);
-  const [dragOverTarget, setDragOverTarget] = useState(null); // 資料夾 ID 或 null(首頁)
+  const [dragOverTarget, setDragOverTarget] = useState(null);
 
   // 1. Firebase 驗證監聽
   useEffect(() => {
@@ -62,9 +62,7 @@ export default function App() {
       if (currentUser) {
         setUser(currentUser);
         setIsAuthLoaded(true);
-        if (!currentUser.isAnonymous) {
-          setShowMainApp(true);
-        } else if (localStorage.getItem('guest_mode') === 'true') {
+        if (!currentUser.isAnonymous || localStorage.getItem('guest_mode') === 'true') {
           setShowMainApp(true);
         }
       } else {
@@ -93,8 +91,8 @@ export default function App() {
         const fetchedLinks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         fetchedLinks.sort((a, b) => b.createdAt - a.createdAt);
         setLinks(fetchedLinks);
-      }, (error) => {
-        if (showMainApp) setErrorMessage("無法讀取資料，請檢查資料庫權限設定或網路連線。");
+      }, () => {
+        if (showMainApp) setErrorMessage("無法讀取資料，請檢查網路連線。");
       });
 
       const foldersRef = collection(db, 'artifacts', appId, 'users', user.uid, 'folders');
@@ -109,7 +107,7 @@ export default function App() {
         unsubscribeFolders();
       };
     } catch (error) {
-      console.error("Firestore 監聽設定失敗:", error);
+      console.error("Firestore 監聽失敗:", error);
     }
   }, [user, showMainApp]);
 
@@ -122,7 +120,8 @@ export default function App() {
     const script = document.createElement('script');
     script.src = 'https://cdn.tailwindcss.com';
     script.onload = () => setIsStylesLoaded(true);
-    script.onerror = () => setIsStylesLoaded(true);
+    // 即使載入失敗也給予放行，避免永遠卡在載入圈圈
+    script.onerror = () => setIsStylesLoaded(true); 
     document.head.appendChild(script);
   }, []);
 
@@ -135,9 +134,7 @@ export default function App() {
       localStorage.removeItem('guest_mode');
       setShowMainApp(true);
     } catch (error) {
-      if (error.code === 'auth/unauthorized-domain') {
-        setErrorMessage("登入失敗：目前網域未經授權。請將網域加入 Firebase 已授權網域清單。");
-      } else if (error.code !== 'auth/popup-closed-by-user') {
+      if (error.code !== 'auth/popup-closed-by-user') {
         setErrorMessage("登入過程中發生錯誤，請稍後再試。");
       }
     }
@@ -172,7 +169,7 @@ export default function App() {
 
   const handleSave = async () => {
     if (!formData.title.trim() || !formData.url.trim() || !user) return;
-    setIsSaving(true); // 鎖定狀態
+    setIsSaving(true);
 
     let finalUrl = formData.url.trim();
     if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
@@ -181,14 +178,13 @@ export default function App() {
 
     try {
       if (modalMode === 'add') {
-        const newLink = {
+        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'links'), {
           title: formData.title.trim(),
           url: finalUrl,
           description: formData.description.trim(),
           folderId: currentFolderId || null,
           createdAt: Date.now()
-        };
-        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'links'), newLink);
+        });
       } else {
         await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'links', currentId), {
           title: formData.title.trim(),
@@ -196,12 +192,11 @@ export default function App() {
           description: formData.description.trim()
         });
       }
-      closeModal(); // 強制關閉視窗
+      closeModal(); // 確保儲存後關閉視窗
     } catch (error) {
-      console.error("儲存失敗:", error);
       setErrorMessage("儲存失敗，請檢查網路連線。");
     } finally {
-      setIsSaving(false); // 解除鎖定
+      setIsSaving(false);
     }
   };
 
@@ -244,12 +239,11 @@ export default function App() {
     }
   };
 
-  // --- 拖曳 (Drag & Drop) 與移動邏輯 ---
+  // --- 拖曳與移動邏輯 ---
   const handleDragStart = (e, link) => {
     setDraggedLink(link);
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('application/json', JSON.stringify(link)); // 讓火狐支援
-    // 使用微小延遲設定 isDragging，讓瀏覽器先擷取拖曳縮圖
+    e.dataTransfer.setData('application/json', JSON.stringify(link));
     setTimeout(() => setIsDragging(true), 10);
   };
 
@@ -260,7 +254,7 @@ export default function App() {
   };
 
   const handleDragOver = (e, targetId) => {
-    e.preventDefault(); // 必須 preventDefault 才能觸發 Drop
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (dragOverTarget !== targetId) setDragOverTarget(targetId);
   };
@@ -275,28 +269,21 @@ export default function App() {
     setIsDragging(false);
     setDragOverTarget(null);
     
-    const linkData = draggedLink;
-    if (!linkData || !user) return;
-    
-    // 如果已經在該資料夾內，則不動作
-    const currentLoc = linkData.folderId || null;
-    if (currentLoc === targetFolderId) {
+    if (!draggedLink || !user || draggedLink.folderId === targetFolderId) {
       handleDragEnd();
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'links', linkData.id), {
+      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'links', draggedLink.id), {
         folderId: targetFolderId
       });
     } catch (error) {
-      console.error("移動失敗:", error);
       setErrorMessage("移動捷徑失敗。");
     }
     handleDragEnd();
   };
 
-  // 手動移動 (按鈕操作)
   const openMoveModal = (link, e) => {
     e.stopPropagation();
     setLinkToMove(link);
@@ -386,7 +373,7 @@ export default function App() {
     );
   }
 
-  // --- 捷徑卡片共用元件 (確保圖示常駐顯示) ---
+  // --- 捷徑卡片共用元件 ---
   const ShortcutCard = ({ link }) => (
     <div 
       draggable
@@ -394,7 +381,6 @@ export default function App() {
       onDragEnd={handleDragEnd}
       className="group relative bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1 cursor-grab active:cursor-grabbing"
     >
-      {/* 編輯/移動/刪除按鈕 (取消隱藏，常駐顯示) */}
       <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
         <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="移動至...">
           <MoveRight size={16} />
@@ -424,19 +410,18 @@ export default function App() {
 
   const unclassifiedLinks = links.filter(l => !l.folderId);
 
-  // --- 畫面 2：主應用程式 (全新佈局) ---
+  // --- 畫面 2：主應用程式 ---
   return (
-    <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden animate-in fade-in duration-500">
+    <div className="flex h-[100dvh] bg-[#F8FAFC] text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden animate-in fade-in duration-500">
       <ErrorToast />
 
       {/* --- 左側導覽列 (側邊欄) --- */}
-      {/* 手機版半透明遮罩 */}
       {isSidebarOpen && (
-        <div className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 transition-opacity" onClick={() => setIsSidebarOpen(false)} />
+        <div className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity" onClick={() => setIsSidebarOpen(false)} />
       )}
       
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 lg:w-80 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-72 lg:w-80 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <Bookmark size={20} className="text-indigo-500" />
             未分類導覽列
@@ -450,7 +435,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-200">
           {unclassifiedLinks.length === 0 ? (
             <div className="text-center text-slate-400 text-sm py-10 px-4 border-2 border-dashed border-slate-100 rounded-2xl">
-              這裡很乾淨！<br/>目前沒有未分類的捷徑。
+              目前沒有未分類的捷徑。<br/>所有捷徑都已歸檔！
             </div>
           ) : (
             unclassifiedLinks.map(link => (
@@ -461,7 +446,6 @@ export default function App() {
                 onDragEnd={handleDragEnd}
                 className="group relative bg-white rounded-xl p-3 border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all cursor-grab active:cursor-grabbing"
               >
-                {/* 右上角操作列 (常駐顯示) */}
                 <div className="absolute top-2 right-2 flex items-center gap-0.5 z-10">
                   <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="移動">
                     <MoveRight size={14} />
@@ -487,107 +471,112 @@ export default function App() {
             ))
           )}
         </div>
+
+        {/* 底部：使用者大頭貼與登入/登出 (從上方移入此處) */}
+        <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0">
+          {user && !user.isAnonymous ? (
+            <div className="flex items-center justify-between bg-white px-3 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="avatar" className="w-8 h-8 rounded-full shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0"><User size={16} /></div>
+                )}
+                <span className="text-sm font-bold text-slate-700 truncate">{user.displayName || '使用者'}</span>
+              </div>
+              <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="登出">
+                <LogOut size={16} />
+              </button>
+            </div>
+          ) : (
+            <button onClick={handleGoogleLogin} className="w-full flex items-center justify-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-2.5 rounded-xl border border-indigo-100 hover:bg-indigo-100 transition-all text-sm font-bold">
+              <User size={16} />
+              登入以啟用同步
+            </button>
+          )}
+        </div>
       </aside>
 
       {/* --- 右側主畫面區塊 --- */}
-      <main className="flex-1 h-screen overflow-y-auto relative">
+      <main className="flex-1 h-full overflow-y-auto relative bg-[#F8FAFC]">
         <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-10 pointer-events-none"></div>
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-6 sm:pt-12 relative z-10 pb-32">
+        <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-5 sm:pt-10 relative z-10 pb-32">
           
-          {/* 主畫面標題與狀態列 */}
-          <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-6 mb-10 border-b border-slate-200/60 pb-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <button className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors" onClick={() => setIsSidebarOpen(true)}>
-                  <Menu size={26} />
-                </button>
-                
-                {currentFolderId ? (
-                  <div className="flex items-center gap-3 animate-in slide-in-from-left-4 duration-300">
-                    <button onClick={() => setCurrentFolderId(null)} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
-                      <ArrowLeft size={24} />
-                    </button>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-                      {folders.find(f => f.id === currentFolderId)?.name || '未命名資料夾'}
-                    </h1>
-                  </div>
-                ) : (
-                  <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">我的資料夾</h1>
-                )}
-              </div>
+          {/* 極簡單行頂部導覽列 */}
+          <header className="flex items-center justify-between gap-3 mb-6 sm:mb-10 pb-4 border-b border-slate-200/60">
+            {/* 左側：漢堡選單 + 標題 */}
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              <button className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors shrink-0" onClick={() => setIsSidebarOpen(true)}>
+                <Menu size={24} />
+              </button>
               
-              <div className="flex items-center">
-                {user && !user.isAnonymous ? (
-                  <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="avatar" className="w-6 h-6 rounded-full" />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600"><User size={14} /></div>
-                    )}
-                    <span className="text-sm font-medium text-slate-700">{user.displayName || '使用者'}</span>
-                    <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                    <button onClick={handleLogout} className="text-slate-400 hover:text-rose-500 transition-colors" title="登出"><LogOut size={16} /></button>
-                  </div>
-                ) : (
-                  <button onClick={handleGoogleLogin} className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 transition-all text-sm font-medium text-slate-700">
-                    升級為正式帳號以同步
+              {currentFolderId ? (
+                <div className="flex items-center gap-1 sm:gap-3 min-w-0 animate-in slide-in-from-left-4 duration-300">
+                  <button onClick={() => setCurrentFolderId(null)} className="p-1.5 sm:p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0">
+                    <ArrowLeft size={22} className="sm:w-6 sm:h-6" />
                   </button>
-                )}
-              </div>
+                  <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-slate-900 truncate">
+                    {folders.find(f => f.id === currentFolderId)?.name || '未命名資料夾'}
+                  </h1>
+                </div>
+              ) : (
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 truncate">我的資料夾</h1>
+              )}
             </div>
             
-            <div className="flex items-center gap-3">
+            {/* 右側：精簡的操作按鈕 */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               {currentFolderId === null && (
-                <button onClick={() => setIsFolderModalOpen(true)} className="flex items-center justify-center gap-2 bg-white text-slate-700 border border-slate-200 px-5 py-3 sm:py-2.5 rounded-full font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
-                  <FolderPlus size={18} />
-                  <span className="hidden sm:inline">新增資料夾</span>
+                <button onClick={() => setIsFolderModalOpen(true)} className="flex items-center justify-center p-2 sm:px-5 sm:py-2.5 bg-white text-slate-700 border border-slate-200 rounded-full font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm" title="新增資料夾">
+                  <FolderPlus size={20} className="sm:w-[18px] sm:h-[18px]" />
+                  <span className="hidden sm:inline ml-2">新增資料夾</span>
                 </button>
               )}
-              <button onClick={openAddModal} className="group flex items-center justify-center gap-2 bg-slate-900 text-white px-6 py-3 sm:py-2.5 rounded-full font-medium hover:bg-indigo-600 transition-all shadow-lg hover:-translate-y-0.5">
-                <Plus size={18} className="group-hover:rotate-90 transition-transform" />
-                <span>新增捷徑</span>
+              <button onClick={openAddModal} className="group flex items-center justify-center p-2 sm:px-6 sm:py-2.5 bg-slate-900 text-white rounded-full font-medium hover:bg-indigo-600 transition-all shadow-lg hover:-translate-y-0.5" title="新增捷徑">
+                <Plus size={20} className="sm:w-[18px] sm:h-[18px] group-hover:rotate-90 transition-transform" />
+                <span className="hidden sm:inline ml-2">新增捷徑</span>
               </button>
             </div>
           </header>
 
           {/* 主畫面內容區塊 */}
           {currentFolderId === null ? (
-            // 根目錄：只顯示資料夾網格
+            // 根目錄：資料夾網格
             <div>
               {folders.length === 0 ? (
-                <div className="text-center py-24 bg-white/40 rounded-[2rem] border border-slate-200 border-dashed">
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-slate-100 text-slate-400 mb-5">
-                    <FolderOpen size={36} />
+                <div className="text-center py-20 sm:py-24 bg-white/40 rounded-[2rem] border border-slate-200 border-dashed">
+                  <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-100 text-slate-400 mb-4 sm:mb-5">
+                    <FolderOpen size={32} className="sm:w-9 sm:h-9" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-700 mb-2">打造您的專屬分類</h3>
-                  <p className="text-slate-500">點擊右上角新增資料夾，或是展開左側選單查看未分類捷徑。</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-700 mb-2">打造您的專屬分類</h3>
+                  <p className="text-sm sm:text-base text-slate-500">點擊右上角新增資料夾，或是展開左側選單。</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
                   {folders.map(folder => (
                     <div 
                       key={folder.id}
                       onClick={() => setCurrentFolderId(folder.id)}
-                      className="group cursor-pointer bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1.5 relative flex flex-col items-center text-center"
+                      className="group cursor-pointer bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1.5 relative flex flex-col items-center text-center"
                     >
-                      <div className="absolute top-3 right-3">
-                        <button onClick={(e) => handleDeleteFolder(folder.id, e)} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" title="刪除資料夾">
+                      <div className="absolute top-2 right-2 sm:top-3 sm:right-3">
+                        <button onClick={(e) => handleDeleteFolder(folder.id, e)} className="p-1.5 sm:p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" title="刪除資料夾">
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-indigo-100 transition-all">
-                        <FolderOpen className="text-indigo-500" size={32} />
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 group-hover:bg-indigo-100 transition-all">
+                        <FolderOpen className="text-indigo-500" size={28} />
                       </div>
-                      <h4 className="font-bold text-slate-800 text-lg truncate w-full">{folder.name}</h4>
-                      <p className="text-sm font-medium text-slate-400 mt-1">{links.filter(l => l.folderId === folder.id).length} 個項目</p>
+                      <h4 className="font-bold text-slate-800 text-base sm:text-lg truncate w-full">{folder.name}</h4>
+                      <p className="text-xs sm:text-sm font-medium text-slate-400 mt-1">{links.filter(l => l.folderId === folder.id).length} 個項目</p>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           ) : (
-            // 資料夾內：顯示該資料夾的捷徑
+            // 資料夾內：顯示捷徑
             <div>
               {(() => {
                 const folderLinks = links.filter(l => l.folderId === currentFolderId);
@@ -596,12 +585,12 @@ export default function App() {
                     <div className="text-center py-20 bg-white/50 rounded-3xl border border-slate-100 border-dashed">
                       <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4"><Bookmark size={28} /></div>
                       <h3 className="text-lg font-semibold text-slate-700 mb-1">這個資料夾是空的</h3>
-                      <p className="text-slate-500">點擊右上角的新增按鈕，或是將左側捷徑拖曳進來吧！</p>
+                      <p className="text-sm sm:text-base text-slate-500">點擊右上角新增按鈕，或是從側邊欄拖曳進來吧！</p>
                     </div>
                   );
                 }
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                     {folderLinks.map(link => <ShortcutCard key={link.id} link={link} />)}
                   </div>
                 );
@@ -611,37 +600,33 @@ export default function App() {
         </div>
       </main>
 
-      {/* --- 拖曳時自動浮現的資料夾放置區 (Bottom Dropzone Overlay) --- */}
+      {/* --- 拖曳放置區 (Bottom Dropzone) --- */}
       {isDragging && (
-        <div className="fixed bottom-0 left-0 right-0 z-[60] p-6 bg-slate-900/95 backdrop-blur-xl border-t border-slate-700 shadow-2xl animate-in slide-in-from-bottom-full duration-300 flex flex-col items-center">
-          <h3 className="text-white mb-6 font-bold flex items-center gap-2 text-lg">
-            <MoveRight size={22} className="text-indigo-400" />
+        <div className="fixed bottom-0 left-0 right-0 z-[60] p-4 sm:p-6 bg-slate-900/95 backdrop-blur-xl border-t border-slate-700 shadow-2xl animate-in slide-in-from-bottom-full duration-300 flex flex-col items-center">
+          <h3 className="text-white mb-4 sm:mb-6 font-bold flex items-center gap-2 text-sm sm:text-lg">
+            <MoveRight size={20} className="text-indigo-400" />
             將捷徑拖曳至下方資料夾放開即可移動
           </h3>
-          <div className="flex gap-4 overflow-x-auto w-full max-w-5xl justify-center pb-4 scrollbar-hide items-center">
-            
-            {/* 放回首頁 (移除分類) */}
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto w-full max-w-5xl justify-center pb-2 sm:pb-4 scrollbar-hide items-center px-4">
             <div
               onDragOver={(e) => handleDragOver(e, null)}
               onDragLeave={(e) => handleDragLeave(e, null)}
               onDrop={(e) => handleDrop(e, null)}
-              className={`flex flex-col items-center justify-center shrink-0 w-28 h-28 rounded-2xl border-2 transition-all duration-200 ${dragOverTarget === null ? 'border-indigo-400 bg-indigo-500/30 scale-110 text-white shadow-lg shadow-indigo-500/20' : 'border-slate-600 bg-slate-800 text-slate-400 border-dashed hover:border-slate-500 hover:text-slate-300'}`}
+              className={`flex flex-col items-center justify-center shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 transition-all duration-200 ${dragOverTarget === null ? 'border-indigo-400 bg-indigo-500/30 scale-110 text-white shadow-lg shadow-indigo-500/20' : 'border-slate-600 bg-slate-800 text-slate-400 border-dashed hover:border-slate-500 hover:text-slate-300'}`}
             >
-              <Menu size={32} className="mb-2" />
-              <span className="text-xs font-medium">未分類導覽列</span>
+              <Menu size={28} className="mb-2" />
+              <span className="text-[10px] sm:text-xs font-medium">移至未分類</span>
             </div>
-            
-            {/* 現有的資料夾 */}
             {folders.map(f => (
               <div
                 key={f.id}
                 onDragOver={(e) => handleDragOver(e, f.id)}
                 onDragLeave={(e) => handleDragLeave(e, f.id)}
                 onDrop={(e) => handleDrop(e, f.id)}
-                className={`flex flex-col items-center justify-center shrink-0 w-28 h-28 rounded-2xl border-2 transition-all duration-200 ${dragOverTarget === f.id ? 'border-indigo-400 bg-indigo-500/30 scale-110 text-white shadow-lg shadow-indigo-500/20' : 'border-slate-600 bg-slate-800 text-slate-400 border-dashed hover:border-slate-500 hover:text-slate-300'}`}
+                className={`flex flex-col items-center justify-center shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 transition-all duration-200 ${dragOverTarget === f.id ? 'border-indigo-400 bg-indigo-500/30 scale-110 text-white shadow-lg shadow-indigo-500/20' : 'border-slate-600 bg-slate-800 text-slate-400 border-dashed hover:border-slate-500 hover:text-slate-300'}`}
               >
-                <FolderOpen size={32} className="mb-2" />
-                <span className="text-xs font-medium truncate w-full text-center px-3">{f.name}</span>
+                <FolderOpen size={28} className="mb-2" />
+                <span className="text-[10px] sm:text-xs font-medium truncate w-full text-center px-2 sm:px-3">{f.name}</span>
               </div>
             ))}
           </div>
@@ -663,21 +648,21 @@ export default function App() {
             <div className="p-6 space-y-5">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1.5">網站名稱 <span className="text-rose-500">*</span></label>
-                <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="例如：Google, Figma..." className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium placeholder:font-normal" autoFocus />
+                <input type="text" name="title" value={formData.title} onChange={handleChange} placeholder="例如：Google, Figma..." className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium" autoFocus />
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1.5">網址 (URL) <span className="text-rose-500">*</span></label>
-                <input type="url" name="url" value={formData.url} onChange={handleChange} placeholder="例如：https://..." className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all font-medium placeholder:font-normal" />
+                <input type="url" name="url" value={formData.url} onChange={handleChange} placeholder="例如：https://..." className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 outline-none transition-all font-medium" />
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1.5">描述 (選填)</label>
-                <textarea name="description" value={formData.description} onChange={handleChange} placeholder="簡單描述用途..." rows="2" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all resize-none"></textarea>
+                <textarea name="description" value={formData.description} onChange={handleChange} placeholder="簡單描述用途..." rows="2" className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 outline-none transition-all resize-none"></textarea>
               </div>
             </div>
             <div className="px-6 py-4 bg-slate-50 flex items-center justify-end gap-3">
               <button type="button" onClick={closeModal} disabled={isSaving} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 disabled:opacity-50">取消</button>
               <button type="button" onClick={handleSave} disabled={!formData.title.trim() || !formData.url.trim() || isSaving} className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md">
-                {isSaving ? <Loader2 size={18} className="animate-spin" /> : (modalMode === 'add' ? '儲存捷徑' : '確認修改')}
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : (modalMode === 'add' ? '儲存' : '修改')}
               </button>
             </div>
           </div>
