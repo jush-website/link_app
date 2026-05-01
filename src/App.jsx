@@ -29,6 +29,8 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [showMainApp, setShowMainApp] = useState(false);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
+  const [isStylesLoaded, setIsStylesLoaded] = useState(false); // 補回：樣式載入狀態
+  const [styleError, setStyleError] = useState(false); // 新增：樣式被擋廣告套件阻擋的狀態
   const [user, setUser] = useState(null);
 
   // 版面與選單狀態
@@ -119,6 +121,28 @@ export default function App() {
       console.error("Firestore 監聽失敗:", error);
     }
   }, [user, showMainApp]);
+
+  // 3. 樣式載入 (加入備用防護)
+  useEffect(() => {
+    if (window.tailwind) {
+      setIsStylesLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.tailwindcss.com';
+    script.onload = () => setIsStylesLoaded(true);
+    script.onerror = () => {
+      console.warn("主要樣式庫被阻擋，嘗試載入備用樣式...");
+      // 如果被擋廣告套件攔截，嘗試載入另一個不容易被擋的 CDN 備用樣式
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css';
+      link.onload = () => setIsStylesLoaded(true);
+      link.onerror = () => setStyleError(true); // 如果備用也失敗，就顯示專屬錯誤畫面
+      document.head.appendChild(link);
+    }; 
+    document.head.appendChild(script);
+  }, []);
 
   // --- 基本操作函數 ---
   const handleGoogleLogin = async () => {
@@ -324,12 +348,30 @@ export default function App() {
     }
   };
 
-  // --- 載入畫面 ---
-  if (!isAuthLoaded) {
+  // --- 載入畫面與錯誤防護 ---
+  if (styleError) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-[#F8FAFC] font-sans">
-        <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p className="mt-5 text-slate-600 font-medium tracking-wide">系統介面載入中...</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif', padding: '20px', textAlign: 'center' }}>
+        <div style={{ color: '#E11D48', marginBottom: '16px' }}>
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        </div>
+        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1E293B', marginBottom: '12px' }}>排版樣式被阻擋了</h2>
+        <p style={{ color: '#475569', lineHeight: '1.6', maxWidth: '400px', fontSize: '16px' }}>
+          您的瀏覽器開啟了 <strong>Brave 護盾</strong> 或 <strong>擋廣告套件 (如 AdBlock)</strong>，導致介面樣式無法載入。
+        </p>
+        <p style={{ color: '#4338CA', marginTop: '20px', fontWeight: 'bold', fontSize: '16px' }}>
+          👉 請將此網站加入白名單或暫時關閉護盾後重新整理。
+        </p>
+      </div>
+    );
+  }
+
+  if (!isStylesLoaded || !isAuthLoaded) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ marginTop: '20px', color: '#475569', fontWeight: 500 }}>系統介面載入中...</p>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
