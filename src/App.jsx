@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, Folder, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu, ListOrdered } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Globe, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu, ListOrdered } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
@@ -27,7 +27,6 @@ export default function App() {
   
   // 系統與驗證狀態
   const [errorMessage, setErrorMessage] = useState("");
-  const [isStylesLoaded, setIsStylesLoaded] = useState(false);
   const [showMainApp, setShowMainApp] = useState(false);
   const [isAuthLoaded, setIsAuthLoaded] = useState(false);
   const [user, setUser] = useState(null);
@@ -45,17 +44,15 @@ export default function App() {
   
   // 儲存中與排序狀態
   const [isSaving, setIsSaving] = useState(false);
-  const [isReorderMode, setIsReorderMode] = useState(false); // 新增：是否處於排序模式
+  const [isReorderMode, setIsReorderMode] = useState(false); // 是否處於排序模式
 
   // 表單資料
   const [currentId, setCurrentId] = useState(null);
   const [formData, setFormData] = useState({ title: '', url: '', description: '' });
   const [folderFormData, setFolderFormData] = useState({ name: '' });
 
-  // 拖曳狀態
-  const [isDragging, setIsDragging] = useState(false);
+  // 拖曳狀態 (僅用於同層排序)
   const [draggedLink, setDraggedLink] = useState(null);
-  const [dragOverTarget, setDragOverTarget] = useState(null);
   const [reorderTargetId, setReorderTargetId] = useState(null);
 
   // 切換資料夾時自動關閉排序模式
@@ -122,19 +119,6 @@ export default function App() {
       console.error("Firestore 監聽失敗:", error);
     }
   }, [user, showMainApp]);
-
-  // 3. 樣式載入
-  useEffect(() => {
-    if (window.tailwind) {
-      setIsStylesLoaded(true);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://cdn.tailwindcss.com';
-    script.onload = () => setIsStylesLoaded(true);
-    script.onerror = () => setIsStylesLoaded(true); 
-    document.head.appendChild(script);
-  }, []);
 
   // --- 基本操作函數 ---
   const handleGoogleLogin = async () => {
@@ -255,33 +239,17 @@ export default function App() {
     }
   };
 
-  // --- 拖曳與移動邏輯 ---
+  // --- 拖曳排序邏輯 (僅保留同層排序) ---
   const handleDragStart = (e, link) => {
     if (!isReorderMode) return;
     setDraggedLink(link);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('application/json', JSON.stringify(link));
-    setTimeout(() => setIsDragging(true), 10);
   };
 
   const handleDragEnd = () => {
-    setIsDragging(false);
     setDraggedLink(null);
-    setDragOverTarget(null);
     setReorderTargetId(null);
-  };
-
-  const handleDragOver = (e, targetId) => {
-    if (!isReorderMode) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverTarget !== targetId) setDragOverTarget(targetId);
-  };
-
-  const handleDragLeave = (e, targetId) => {
-    if (!isReorderMode) return;
-    e.preventDefault();
-    if (dragOverTarget === targetId) setDragOverTarget(null);
   };
 
   const handleReorderDragOver = (e, targetLink) => {
@@ -337,27 +305,6 @@ export default function App() {
     }
   };
 
-  const handleDrop = async (e, targetFolderId) => {
-    if (!isReorderMode) return;
-    e.preventDefault();
-    setIsDragging(false);
-    setDragOverTarget(null);
-    
-    if (!draggedLink || !user || draggedLink.folderId === targetFolderId) {
-      handleDragEnd();
-      return;
-    }
-
-    try {
-      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'links', draggedLink.id), {
-        folderId: targetFolderId
-      });
-    } catch (error) {
-      setErrorMessage("移動捷徑失敗。");
-    }
-    handleDragEnd();
-  };
-
   const openMoveModal = (link, e) => {
     e.stopPropagation();
     setLinkToMove(link);
@@ -378,12 +325,11 @@ export default function App() {
   };
 
   // --- 載入畫面 ---
-  if (!isStylesLoaded || !isAuthLoaded) {
+  if (!isAuthLoaded) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-        <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-        <p style={{ marginTop: '20px', color: '#475569', fontWeight: 500 }}>系統介面載入中...</p>
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-[#F8FAFC] font-sans">
+        <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p className="mt-5 text-slate-600 font-medium tracking-wide">系統介面載入中...</p>
       </div>
     );
   }
@@ -456,7 +402,7 @@ export default function App() {
       onDragOver={(e) => handleReorderDragOver(e, link)}
       onDragLeave={(e) => handleReorderDragLeave(e, link)}
       onDrop={(e) => handleReorderDrop(e, link)}
-      className={`group relative bg-white rounded-2xl p-5 border shadow-sm transition-all duration-300 ${
+      className={`group relative bg-white rounded-2xl p-5 border shadow-sm transition-all duration-300 w-full min-w-0 ${
         isReorderMode 
           ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300' 
           : 'hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 hover:-translate-y-1'
@@ -481,7 +427,8 @@ export default function App() {
         </div>
       )}
 
-      <div className="flex items-center mt-2">
+      {/* 強制加入 min-w-0 解決 flex 內的字體溢出問題 */}
+      <div className="flex items-center mt-2 w-full min-w-0">
         {/* 排序模式時顯示拖拉圖示 (三條線) */}
         {isReorderMode && (
           <div className="text-slate-300 flex-shrink-0 mr-4 ml-1">
@@ -492,15 +439,16 @@ export default function App() {
           href={link.url} 
           target="_blank" 
           rel="noopener noreferrer" 
-          onClick={(e) => isReorderMode && e.preventDefault()} // 排序模式下防止點擊跳轉
-          className={`flex-1 flex items-start gap-4 outline-none ${isReorderMode ? 'pointer-events-none' : ''}`}
+          onClick={(e) => isReorderMode && e.preventDefault()}
+          className={`flex-1 flex items-start gap-4 outline-none min-w-0 ${isReorderMode ? 'pointer-events-none' : ''}`}
         >
           <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
             <Globe size={22} />
           </div>
-          <div className="flex-1 min-w-0 pr-12">
-            <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">{link.title}</h3>
-            <p className="text-sm text-indigo-500/80 truncate mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
+          {/* 加入 pr-14 給右上角按鈕留空間，並嚴格加上 min-w-0 */}
+          <div className="flex-1 min-w-0 pr-14">
+            <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate w-full block">{link.title}</h3>
+            <p className="text-sm text-indigo-500/80 truncate w-full block mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
             {link.description && <p className="text-sm text-slate-500 mt-2.5 line-clamp-2 leading-relaxed">{link.description}</p>}
           </div>
         </a>
@@ -547,7 +495,7 @@ export default function App() {
                 onDragOver={(e) => handleReorderDragOver(e, link)}
                 onDragLeave={(e) => handleReorderDragLeave(e, link)}
                 onDrop={(e) => handleReorderDrop(e, link)}
-                className={`group relative bg-white rounded-xl p-3 border shadow-sm transition-all ${
+                className={`group relative bg-white rounded-xl p-3 border shadow-sm transition-all w-full min-w-0 ${
                   isReorderMode 
                     ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300' 
                     : 'hover:border-indigo-300 hover:shadow-md'
@@ -571,7 +519,7 @@ export default function App() {
                   </div>
                 )}
                 
-                <div className="flex items-center mt-1">
+                <div className="flex items-center mt-1 w-full min-w-0">
                   {isReorderMode && (
                     <div className="text-slate-300 shrink-0 mr-3 ml-1">
                       <Menu size={20} />
@@ -582,14 +530,15 @@ export default function App() {
                     target="_blank" 
                     rel="noopener noreferrer" 
                     onClick={(e) => isReorderMode && e.preventDefault()}
-                    className={`flex items-start gap-3 outline-none flex-1 ${isReorderMode ? 'pointer-events-none' : ''}`}
+                    className={`flex items-start gap-3 outline-none flex-1 min-w-0 ${isReorderMode ? 'pointer-events-none' : ''}`}
                   >
                     <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                       <Globe size={18} />
                     </div>
-                    <div className="flex-1 min-w-0 pr-16">
-                      <h4 className="font-bold text-slate-800 text-sm truncate group-hover:text-indigo-600 transition-colors">{link.title}</h4>
-                      <p className="text-xs text-slate-500 truncate mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
+                    {/* 加入 min-w-0 並留出按鈕空間 */}
+                    <div className="flex-1 min-w-0 pr-16 w-full">
+                      <h4 className="font-bold text-slate-800 text-sm truncate group-hover:text-indigo-600 transition-colors block w-full">{link.title}</h4>
+                      <p className="text-xs text-slate-500 truncate mt-0.5 block w-full">{link.url.replace(/^https?:\/\//, '')}</p>
                     </div>
                   </a>
                 </div>
@@ -630,13 +579,13 @@ export default function App() {
           {/* 極簡單行頂部導覽列 */}
           <header className="flex items-center justify-between gap-3 mb-6 sm:mb-10 pb-4 border-b border-slate-200/60">
             {/* 左側：漢堡選單 + 標題 */}
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
               <button className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors shrink-0" onClick={() => setIsSidebarOpen(true)}>
                 <Menu size={24} />
               </button>
               
               {currentFolderId ? (
-                <div className="flex items-center gap-1 sm:gap-3 min-w-0 animate-in slide-in-from-left-4 duration-300">
+                <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-1 animate-in slide-in-from-left-4 duration-300">
                   <button onClick={() => setCurrentFolderId(null)} className="p-1.5 sm:p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0">
                     <ArrowLeft size={22} className="sm:w-6 sm:h-6" />
                   </button>
@@ -645,13 +594,13 @@ export default function App() {
                   </h1>
                 </div>
               ) : (
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 truncate">我的資料夾</h1>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 truncate flex-1">我的資料夾</h1>
               )}
             </div>
             
             {/* 右側：精簡的操作按鈕 */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {/* 新增：排序模式切換按鈕 */}
+              {/* 排序模式切換按鈕 */}
               <button 
                 onClick={() => setIsReorderMode(!isReorderMode)} 
                 className={`flex items-center justify-center p-2 sm:px-4 sm:py-2.5 border rounded-full font-medium transition-all shadow-sm ${
@@ -723,7 +672,7 @@ export default function App() {
                     <div className="text-center py-20 bg-white/50 rounded-3xl border border-slate-100 border-dashed">
                       <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4"><Bookmark size={28} /></div>
                       <h3 className="text-lg font-semibold text-slate-700 mb-1">這個資料夾是空的</h3>
-                      <p className="text-sm sm:text-base text-slate-500">點擊右上角新增按鈕，或是從側邊欄拖曳進來吧！</p>
+                      <p className="text-sm sm:text-base text-slate-500">點擊右上角新增按鈕，或是從側邊欄移入吧！</p>
                     </div>
                   );
                 }
@@ -737,39 +686,6 @@ export default function App() {
           )}
         </div>
       </main>
-
-      {/* --- 拖曳放置區 (Bottom Dropzone) --- */}
-      {isDragging && (
-        <div className="fixed bottom-0 left-0 right-0 z-[60] p-4 sm:p-6 bg-slate-900/95 backdrop-blur-xl border-t border-slate-700 shadow-2xl animate-in slide-in-from-bottom-full duration-300 flex flex-col items-center">
-          <h3 className="text-white mb-4 sm:mb-6 font-bold flex items-center gap-2 text-sm sm:text-lg">
-            <MoveRight size={20} className="text-indigo-400" />
-            將捷徑拖曳至下方資料夾放開即可移動
-          </h3>
-          <div className="flex gap-3 sm:gap-4 overflow-x-auto w-full max-w-5xl justify-center pb-2 sm:pb-4 scrollbar-hide items-center px-4">
-            <div
-              onDragOver={(e) => handleDragOver(e, null)}
-              onDragLeave={(e) => handleDragLeave(e, null)}
-              onDrop={(e) => handleDrop(e, null)}
-              className={`flex flex-col items-center justify-center shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 transition-all duration-200 ${dragOverTarget === null ? 'border-indigo-400 bg-indigo-500/30 scale-110 text-white shadow-lg shadow-indigo-500/20' : 'border-slate-600 bg-slate-800 text-slate-400 border-dashed hover:border-slate-500 hover:text-slate-300'}`}
-            >
-              <Menu size={28} className="mb-2" />
-              <span className="text-[10px] sm:text-xs font-medium">移至未分類</span>
-            </div>
-            {folders.map(f => (
-              <div
-                key={f.id}
-                onDragOver={(e) => handleDragOver(e, f.id)}
-                onDragLeave={(e) => handleDragLeave(e, f.id)}
-                onDrop={(e) => handleDrop(e, f.id)}
-                className={`flex flex-col items-center justify-center shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 transition-all duration-200 ${dragOverTarget === f.id ? 'border-indigo-400 bg-indigo-500/30 scale-110 text-white shadow-lg shadow-indigo-500/20' : 'border-slate-600 bg-slate-800 text-slate-400 border-dashed hover:border-slate-500 hover:text-slate-300'}`}
-              >
-                <FolderOpen size={28} className="mb-2" />
-                <span className="text-[10px] sm:text-xs font-medium truncate w-full text-center px-2 sm:px-3">{f.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* --- 新增/修改捷徑 Modal --- */}
       {isModalOpen && (
@@ -833,7 +749,7 @@ export default function App() {
         </div>
       )}
 
-      {/* --- 手動移動捷徑 Modal --- */}
+      {/* --- 移動捷徑至其他資料夾的專屬 Modal --- */}
       {isMoveModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6" onClick={() => setIsMoveModalOpen(false)}>
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in"></div>
@@ -846,16 +762,24 @@ export default function App() {
               <button onClick={() => setIsMoveModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-200 rounded-full transition-colors"><X size={20} /></button>
             </div>
             <div className="p-4 max-h-72 overflow-y-auto scrollbar-thin">
-              <div onClick={() => handleMoveLink(null)} className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 ${linkToMove?.folderId == null ? 'border-indigo-200 bg-indigo-50 text-indigo-700 font-bold' : 'border-transparent hover:bg-slate-50 text-slate-700 font-medium'}`}>
-                <Menu size={20} className={linkToMove?.folderId == null ? 'text-indigo-600' : 'text-slate-400'} />
-                <span>未分類導覽列</span>
-              </div>
-              {folders.map(folder => (
-                <div key={folder.id} onClick={() => handleMoveLink(folder.id)} className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 mt-2 ${linkToMove?.folderId === folder.id ? 'border-indigo-200 bg-indigo-50 text-indigo-700 font-bold' : 'border-transparent hover:bg-slate-50 text-slate-700 font-medium'}`}>
-                  <FolderOpen size={20} className={linkToMove?.folderId === folder.id ? 'text-indigo-600' : 'text-slate-400'} />
+              {/* 如果目前不是在未分類，才顯示「移至未分類」 */}
+              {linkToMove?.folderId !== null && (
+                <div onClick={() => handleMoveLink(null)} className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 border-transparent hover:bg-slate-50 text-slate-700 font-medium">
+                  <Menu size={20} className="text-slate-400" />
+                  <span>未分類導覽列</span>
+                </div>
+              )}
+              {/* 顯示「不是目前所在位置」的所有資料夾 */}
+              {folders.filter(f => f.id !== linkToMove?.folderId).map(folder => (
+                <div key={folder.id} onClick={() => handleMoveLink(folder.id)} className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 border-transparent hover:bg-slate-50 text-slate-700 font-medium mt-1">
+                  <FolderOpen size={20} className="text-slate-400" />
                   <span className="truncate">{folder.name}</span>
                 </div>
               ))}
+              
+              {folders.filter(f => f.id !== linkToMove?.folderId).length === 0 && linkToMove?.folderId === null && (
+                <div className="text-center text-slate-400 py-6 text-sm">目前沒有其他資料夾可以移動。</div>
+              )}
             </div>
           </div>
         </div>
