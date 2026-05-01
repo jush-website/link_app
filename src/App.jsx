@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-// 1. 移除 Loader2 的匯入，避免版本不支援導致白屏
-import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, Folder, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, Folder, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu, ListOrdered } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
-// 引入 writeBatch 支援批次更新排序
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 
 // Firebase 初始化設定
@@ -45,8 +43,9 @@ export default function App() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [linkToMove, setLinkToMove] = useState(null);
   
-  // 儲存中狀態
+  // 儲存中與排序狀態
   const [isSaving, setIsSaving] = useState(false);
+  const [isReorderMode, setIsReorderMode] = useState(false); // 新增：是否處於排序模式
 
   // 表單資料
   const [currentId, setCurrentId] = useState(null);
@@ -57,8 +56,12 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedLink, setDraggedLink] = useState(null);
   const [dragOverTarget, setDragOverTarget] = useState(null);
-  // 新增：同資料夾內拖曳排序的目標
   const [reorderTargetId, setReorderTargetId] = useState(null);
+
+  // 切換資料夾時自動關閉排序模式
+  useEffect(() => {
+    setIsReorderMode(false);
+  }, [currentFolderId]);
 
   // 1. Firebase 驗證監聽
   useEffect(() => {
@@ -93,7 +96,6 @@ export default function App() {
       const linksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'links');
       const unsubscribeLinks = onSnapshot(linksRef, (snapshot) => {
         const fetchedLinks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // 依照 order 欄位排序 (若無則依建立時間)
         fetchedLinks.sort((a, b) => {
           if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
           if (a.order !== undefined) return -1;
@@ -130,7 +132,6 @@ export default function App() {
     const script = document.createElement('script');
     script.src = 'https://cdn.tailwindcss.com';
     script.onload = () => setIsStylesLoaded(true);
-    // 即使載入失敗也給予放行，避免永遠卡在載入圈圈
     script.onerror = () => setIsStylesLoaded(true); 
     document.head.appendChild(script);
   }, []);
@@ -177,14 +178,12 @@ export default function App() {
 
   const closeModal = () => setIsModalOpen(false);
 
-  // 補回遺失的表單輸入處理函數！
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
-    // 2. 加入 ?. (Optional Chaining) 安全防護，避免字串未定義時崩潰
     if (!formData.title?.trim() || !formData.url?.trim() || !user) return;
     setIsSaving(true);
 
@@ -209,7 +208,7 @@ export default function App() {
           description: formData.description.trim()
         });
       }
-      closeModal(); // 確保儲存後關閉視窗
+      closeModal();
     } catch (error) {
       setErrorMessage("儲存失敗，請檢查網路連線。");
     } finally {
@@ -229,7 +228,6 @@ export default function App() {
 
   // --- 資料夾 CRUD ---
   const handleSaveFolder = async () => {
-    // 加入 ?. 安全防護
     if (!folderFormData.name?.trim() || !user) return;
     setIsSaving(true);
     try {
@@ -259,6 +257,7 @@ export default function App() {
 
   // --- 拖曳與移動邏輯 ---
   const handleDragStart = (e, link) => {
+    if (!isReorderMode) return;
     setDraggedLink(link);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('application/json', JSON.stringify(link));
@@ -272,62 +271,59 @@ export default function App() {
     setReorderTargetId(null);
   };
 
-  // 用於跨資料夾的底部放置區
   const handleDragOver = (e, targetId) => {
+    if (!isReorderMode) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (dragOverTarget !== targetId) setDragOverTarget(targetId);
   };
 
   const handleDragLeave = (e, targetId) => {
+    if (!isReorderMode) return;
     e.preventDefault();
     if (dragOverTarget === targetId) setDragOverTarget(null);
   };
 
-  // --- 新增：處理同資料夾內的卡片排序拖曳 ---
   const handleReorderDragOver = (e, targetLink) => {
+    if (!isReorderMode) return;
     e.preventDefault();
-    e.stopPropagation(); // 阻止觸發底部的跨資料夾感應區
+    e.stopPropagation(); 
     e.dataTransfer.dropEffect = 'move';
     
-    // 只允許在「同一個資料夾 (包含皆為未分類)」且「不是自己」的情況下顯示排序提示
     if (draggedLink && draggedLink.id !== targetLink.id && draggedLink.folderId === targetLink.folderId) {
       if (reorderTargetId !== targetLink.id) setReorderTargetId(targetLink.id);
     }
   };
 
   const handleReorderDragLeave = (e, targetLink) => {
+    if (!isReorderMode) return;
     e.preventDefault();
     e.stopPropagation();
     if (reorderTargetId === targetLink.id) setReorderTargetId(null);
   };
 
   const handleReorderDrop = async (e, targetLink) => {
+    if (!isReorderMode) return;
     e.preventDefault();
     e.stopPropagation();
     
     const movingLink = draggedLink;
-    handleDragEnd(); // 清除拖曳狀態
+    handleDragEnd(); 
 
-    // 基本驗證
     if (!movingLink || !user || movingLink.id === targetLink.id) return;
     if (movingLink.folderId !== targetLink.folderId) return;
 
     try {
-      // 取得當前畫面(資料夾)內的所有連結
       const currentFolderLinks = links.filter(l => l.folderId === movingLink.folderId);
-      
       const draggedIndex = currentFolderLinks.findIndex(l => l.id === movingLink.id);
       const targetIndex = currentFolderLinks.findIndex(l => l.id === targetLink.id);
       
       if (draggedIndex === -1 || targetIndex === -1) return;
 
-      // 在記憶體中重新排序陣列
       const newLinksArray = [...currentFolderLinks];
       const [removed] = newLinksArray.splice(draggedIndex, 1);
       newLinksArray.splice(targetIndex, 0, removed);
 
-      // 使用 Firestore 批次更新 (writeBatch)，一次性寫入所有受影響的 order 值
       const batch = writeBatch(db);
       newLinksArray.forEach((link, index) => {
         const linkRef = doc(db, 'artifacts', appId, 'users', user.uid, 'links', link.id);
@@ -341,8 +337,8 @@ export default function App() {
     }
   };
 
-  // 跨資料夾的放置處理
   const handleDrop = async (e, targetFolderId) => {
+    if (!isReorderMode) return;
     e.preventDefault();
     setIsDragging(false);
     setDragOverTarget(null);
@@ -454,42 +450,61 @@ export default function App() {
   // --- 捷徑卡片共用元件 ---
   const ShortcutCard = ({ link }) => (
     <div 
-      draggable
+      draggable={isReorderMode}
       onDragStart={(e) => handleDragStart(e, link)}
       onDragEnd={handleDragEnd}
       onDragOver={(e) => handleReorderDragOver(e, link)}
       onDragLeave={(e) => handleReorderDragLeave(e, link)}
       onDrop={(e) => handleReorderDrop(e, link)}
-      className={`group relative bg-white rounded-2xl p-5 border shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 cursor-grab active:cursor-grabbing ${
-        reorderTargetId === link.id 
+      className={`group relative bg-white rounded-2xl p-5 border shadow-sm transition-all duration-300 ${
+        isReorderMode 
+          ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300' 
+          : 'hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 hover:-translate-y-1'
+      } ${
+        reorderTargetId === link.id && isReorderMode
           ? 'border-indigo-500 bg-indigo-50/50 scale-[1.02] ring-2 ring-indigo-200' 
-          : 'border-slate-200 hover:-translate-y-1'
+          : 'border-slate-200'
       }`}
     >
-      <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
-        <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="移動至...">
-          <MoveRight size={16} />
-        </button>
-        <button onClick={(e) => openEditModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="編輯">
-          <Edit2 size={16} />
-        </button>
-        <button onClick={(e) => handleDelete(link.id, e)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="刪除">
-          <Trash2 size={16} />
-        </button>
-      </div>
+      {/* 非排序模式時才顯示操作按鈕 */}
+      {!isReorderMode && (
+        <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+          <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="移動至...">
+            <MoveRight size={16} />
+          </button>
+          <button onClick={(e) => openEditModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="編輯">
+            <Edit2 size={16} />
+          </button>
+          <button onClick={(e) => handleDelete(link.id, e)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="刪除">
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )}
 
-      <a href={link.url} target="_blank" rel="noopener noreferrer" className="block outline-none mt-2">
-        <div className="flex items-start gap-4">
+      <div className="flex items-center mt-2">
+        {/* 排序模式時顯示拖拉圖示 (三條線) */}
+        {isReorderMode && (
+          <div className="text-slate-300 flex-shrink-0 mr-4 ml-1">
+            <Menu size={24} />
+          </div>
+        )}
+        <a 
+          href={link.url} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          onClick={(e) => isReorderMode && e.preventDefault()} // 排序模式下防止點擊跳轉
+          className={`flex-1 flex items-start gap-4 outline-none ${isReorderMode ? 'pointer-events-none' : ''}`}
+        >
           <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
             <Globe size={22} />
           </div>
-          <div className="flex-1 min-w-0 pr-20">
+          <div className="flex-1 min-w-0 pr-12">
             <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">{link.title}</h3>
             <p className="text-sm text-indigo-500/80 truncate mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
             {link.description && <p className="text-sm text-slate-500 mt-2.5 line-clamp-2 leading-relaxed">{link.description}</p>}
           </div>
-        </div>
-      </a>
+        </a>
+      </div>
     </div>
   );
 
@@ -526,38 +541,64 @@ export default function App() {
             unclassifiedLinks.map(link => (
               <div 
                 key={link.id}
-                draggable
+                draggable={isReorderMode}
                 onDragStart={(e) => handleDragStart(e, link)}
                 onDragEnd={handleDragEnd}
-                className="group relative bg-white rounded-xl p-3 border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all cursor-grab active:cursor-grabbing"
+                onDragOver={(e) => handleReorderDragOver(e, link)}
+                onDragLeave={(e) => handleReorderDragLeave(e, link)}
+                onDrop={(e) => handleReorderDrop(e, link)}
+                className={`group relative bg-white rounded-xl p-3 border shadow-sm transition-all ${
+                  isReorderMode 
+                    ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300' 
+                    : 'hover:border-indigo-300 hover:shadow-md'
+                } ${
+                  reorderTargetId === link.id && isReorderMode
+                    ? 'border-indigo-500 bg-indigo-50/50 scale-[1.02]' 
+                    : 'border-slate-200'
+                }`}
               >
-                <div className="absolute top-2 right-2 flex items-center gap-0.5 z-10">
-                  <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="移動">
-                    <MoveRight size={14} />
-                  </button>
-                  <button onClick={(e) => openEditModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="編輯">
-                    <Edit2 size={14} />
-                  </button>
-                  <button onClick={(e) => handleDelete(link.id, e)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="刪除">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                {!isReorderMode && (
+                  <div className="absolute top-2 right-2 flex items-center gap-0.5 z-10">
+                    <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="移動">
+                      <MoveRight size={14} />
+                    </button>
+                    <button onClick={(e) => openEditModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="編輯">
+                      <Edit2 size={14} />
+                    </button>
+                    <button onClick={(e) => handleDelete(link.id, e)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors bg-white shadow-sm border border-slate-100" title="刪除">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
                 
-                <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 outline-none mt-1">
-                  <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                    <Globe size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0 pr-20">
-                    <h4 className="font-bold text-slate-800 text-sm truncate group-hover:text-indigo-600 transition-colors">{link.title}</h4>
-                    <p className="text-xs text-slate-500 truncate mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
-                  </div>
-                </a>
+                <div className="flex items-center mt-1">
+                  {isReorderMode && (
+                    <div className="text-slate-300 shrink-0 mr-3 ml-1">
+                      <Menu size={20} />
+                    </div>
+                  )}
+                  <a 
+                    href={link.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    onClick={(e) => isReorderMode && e.preventDefault()}
+                    className={`flex items-start gap-3 outline-none flex-1 ${isReorderMode ? 'pointer-events-none' : ''}`}
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                      <Globe size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0 pr-16">
+                      <h4 className="font-bold text-slate-800 text-sm truncate group-hover:text-indigo-600 transition-colors">{link.title}</h4>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
+                    </div>
+                  </a>
+                </div>
               </div>
             ))
           )}
         </div>
 
-        {/* 底部：使用者大頭貼與登入/登出 (從上方移入此處) */}
+        {/* 底部：使用者大頭貼與登入/登出 */}
         <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0">
           {user && !user.isAnonymous ? (
             <div className="flex items-center justify-between bg-white px-3 py-2.5 rounded-xl border border-slate-200 shadow-sm">
@@ -610,13 +651,27 @@ export default function App() {
             
             {/* 右側：精簡的操作按鈕 */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {/* 新增：排序模式切換按鈕 */}
+              <button 
+                onClick={() => setIsReorderMode(!isReorderMode)} 
+                className={`flex items-center justify-center p-2 sm:px-4 sm:py-2.5 border rounded-full font-medium transition-all shadow-sm ${
+                  isReorderMode 
+                    ? 'bg-indigo-100 text-indigo-700 border-indigo-200 hover:bg-indigo-200' 
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                }`} 
+                title="排序捷徑"
+              >
+                <ListOrdered size={20} className="sm:w-[18px] sm:h-[18px]" />
+                <span className="hidden sm:inline ml-2">{isReorderMode ? '完成排序' : '切換排序'}</span>
+              </button>
+
               {currentFolderId === null && (
-                <button onClick={() => setIsFolderModalOpen(true)} className="flex items-center justify-center p-2 sm:px-5 sm:py-2.5 bg-white text-slate-700 border border-slate-200 rounded-full font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm" title="新增資料夾">
+                <button onClick={() => setIsFolderModalOpen(true)} className="flex items-center justify-center p-2 sm:px-4 sm:py-2.5 bg-white text-slate-700 border border-slate-200 rounded-full font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm" title="新增資料夾">
                   <FolderPlus size={20} className="sm:w-[18px] sm:h-[18px]" />
                   <span className="hidden sm:inline ml-2">新增資料夾</span>
                 </button>
               )}
-              <button onClick={openAddModal} className="group flex items-center justify-center p-2 sm:px-6 sm:py-2.5 bg-slate-900 text-white rounded-full font-medium hover:bg-indigo-600 transition-all shadow-lg hover:-translate-y-0.5" title="新增捷徑">
+              <button onClick={openAddModal} className="group flex items-center justify-center p-2 sm:px-5 sm:py-2.5 bg-slate-900 text-white rounded-full font-medium hover:bg-indigo-600 transition-all shadow-lg hover:-translate-y-0.5" title="新增捷徑">
                 <Plus size={20} className="sm:w-[18px] sm:h-[18px] group-hover:rotate-90 transition-transform" />
                 <span className="hidden sm:inline ml-2">新增捷徑</span>
               </button>
@@ -744,7 +799,6 @@ export default function App() {
             </div>
             <div className="px-6 py-4 bg-slate-50 flex items-center justify-end gap-3">
               <button type="button" onClick={closeModal} disabled={isSaving} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 disabled:opacity-50 transition-colors">取消</button>
-              {/* 3. 將按鈕內的 Loader2 換成純 CSS 動畫圈圈，並為按鈕加入安全防護與固定寬度 min-w-[96px] */}
               <button type="button" onClick={handleSave} disabled={!formData.title?.trim() || !formData.url?.trim() || isSaving} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md min-w-[96px]">
                 {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : (modalMode === 'add' ? '儲存' : '修改')}
               </button>
@@ -771,7 +825,6 @@ export default function App() {
             </div>
             <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3">
               <button onClick={() => setIsFolderModalOpen(false)} disabled={isSaving} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-200/50 disabled:opacity-50 transition-colors">取消</button>
-              {/* 這裡同樣換成原生 CSS 圈圈並加入安全防護 */}
               <button onClick={handleSaveFolder} disabled={!folderFormData.name?.trim() || isSaving} className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all min-w-[96px]">
                 {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : '建立'}
               </button>
