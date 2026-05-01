@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Globe, Link as LinkIcon, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, Folder, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+// 引入 writeBatch 支援批次更新排序
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 
 // Firebase 初始化設定
 const firebaseConfig = {
@@ -56,6 +57,8 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedLink, setDraggedLink] = useState(null);
   const [dragOverTarget, setDragOverTarget] = useState(null);
+  // 新增：同資料夾內拖曳排序的目標
+  const [reorderTargetId, setReorderTargetId] = useState(null);
 
   // 1. Firebase 驗證監聽
   useEffect(() => {
@@ -90,7 +93,13 @@ export default function App() {
       const linksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'links');
       const unsubscribeLinks = onSnapshot(linksRef, (snapshot) => {
         const fetchedLinks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        fetchedLinks.sort((a, b) => b.createdAt - a.createdAt);
+        // 依照 order 欄位排序 (若無則依建立時間)
+        fetchedLinks.sort((a, b) => {
+          if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+          if (a.order !== undefined) return -1;
+          if (b.order !== undefined) return 1;
+          return b.createdAt - a.createdAt;
+        });
         setLinks(fetchedLinks);
       }, () => {
         if (showMainApp) setErrorMessage("無法讀取資料，請檢查網路連線。");
@@ -260,8 +269,10 @@ export default function App() {
     setIsDragging(false);
     setDraggedLink(null);
     setDragOverTarget(null);
+    setReorderTargetId(null);
   };
 
+  // 用於跨資料夾的底部放置區
   const handleDragOver = (e, targetId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -273,6 +284,64 @@ export default function App() {
     if (dragOverTarget === targetId) setDragOverTarget(null);
   };
 
+  // --- 新增：處理同資料夾內的卡片排序拖曳 ---
+  const handleReorderDragOver = (e, targetLink) => {
+    e.preventDefault();
+    e.stopPropagation(); // 阻止觸發底部的跨資料夾感應區
+    e.dataTransfer.dropEffect = 'move';
+    
+    // 只允許在「同一個資料夾 (包含皆為未分類)」且「不是自己」的情況下顯示排序提示
+    if (draggedLink && draggedLink.id !== targetLink.id && draggedLink.folderId === targetLink.folderId) {
+      if (reorderTargetId !== targetLink.id) setReorderTargetId(targetLink.id);
+    }
+  };
+
+  const handleReorderDragLeave = (e, targetLink) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (reorderTargetId === targetLink.id) setReorderTargetId(null);
+  };
+
+  const handleReorderDrop = async (e, targetLink) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const movingLink = draggedLink;
+    handleDragEnd(); // 清除拖曳狀態
+
+    // 基本驗證
+    if (!movingLink || !user || movingLink.id === targetLink.id) return;
+    if (movingLink.folderId !== targetLink.folderId) return;
+
+    try {
+      // 取得當前畫面(資料夾)內的所有連結
+      const currentFolderLinks = links.filter(l => l.folderId === movingLink.folderId);
+      
+      const draggedIndex = currentFolderLinks.findIndex(l => l.id === movingLink.id);
+      const targetIndex = currentFolderLinks.findIndex(l => l.id === targetLink.id);
+      
+      if (draggedIndex === -1 || targetIndex === -1) return;
+
+      // 在記憶體中重新排序陣列
+      const newLinksArray = [...currentFolderLinks];
+      const [removed] = newLinksArray.splice(draggedIndex, 1);
+      newLinksArray.splice(targetIndex, 0, removed);
+
+      // 使用 Firestore 批次更新 (writeBatch)，一次性寫入所有受影響的 order 值
+      const batch = writeBatch(db);
+      newLinksArray.forEach((link, index) => {
+        const linkRef = doc(db, 'artifacts', appId, 'users', user.uid, 'links', link.id);
+        batch.update(linkRef, { order: index });
+      });
+      
+      await batch.commit();
+    } catch (error) {
+      console.error("排序儲存失敗:", error);
+      setErrorMessage("排序更新失敗，請檢查網路連線。");
+    }
+  };
+
+  // 跨資料夾的放置處理
   const handleDrop = async (e, targetFolderId) => {
     e.preventDefault();
     setIsDragging(false);
@@ -388,7 +457,14 @@ export default function App() {
       draggable
       onDragStart={(e) => handleDragStart(e, link)}
       onDragEnd={handleDragEnd}
-      className="group relative bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1 cursor-grab active:cursor-grabbing"
+      onDragOver={(e) => handleReorderDragOver(e, link)}
+      onDragLeave={(e) => handleReorderDragLeave(e, link)}
+      onDrop={(e) => handleReorderDrop(e, link)}
+      className={`group relative bg-white rounded-2xl p-5 border shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 cursor-grab active:cursor-grabbing ${
+        reorderTargetId === link.id 
+          ? 'border-indigo-500 bg-indigo-50/50 scale-[1.02] ring-2 ring-indigo-200' 
+          : 'border-slate-200 hover:-translate-y-1'
+      }`}
     >
       <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
         <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="移動至...">
