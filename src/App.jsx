@@ -20,6 +20,32 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'my-shortcut-app';
 
+// 寫入滑鼠座標給 .spotlight-card 的光暈用（直接操作 CSS 變數，不經過 React state）
+const handleSpotlight = (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty('--x', `${e.clientX - r.left}px`);
+  e.currentTarget.style.setProperty('--y', `${e.clientY - r.top}px`);
+};
+
+// 顯示網站本身的 favicon，抓不到時退回地球圖示
+const SiteIcon = ({ url, size = 22 }) => {
+  const [failed, setFailed] = useState(false);
+  let host = '';
+  try { host = new URL(url).hostname; } catch { /* 無效網址 */ }
+  if (failed || !host) return <Globe size={size} />;
+  return (
+    <img
+      src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`}
+      alt=""
+      width={size}
+      height={size}
+      className="rounded-md"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+};
+
 export default function App() {
   // 核心資料狀態
   const [links, setLinks] = useState([]);
@@ -397,11 +423,7 @@ export default function App() {
   // --- 畫面 1：登入畫面 ---
   if (!showMainApp) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden font-sans">
-        <style>{`
-          @keyframes blob { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } }
-          .animate-blob { animation: blob 7s infinite; } .animation-delay-2000 { animation-delay: 2s; } .animation-delay-4000 { animation-delay: 4s; }
-        `}</style>
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob"></div>
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[40%] h-[40%] bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000"></div>
@@ -436,15 +458,17 @@ export default function App() {
   }
 
   // --- 捷徑卡片共用元件 ---
-  const ShortcutCard = ({ link }) => (
-    <div 
+  const ShortcutCard = ({ link, index = 0 }) => (
+    <div
       draggable={isReorderMode}
       onDragStart={(e) => handleDragStart(e, link)}
       onDragEnd={handleDragEnd}
       onDragOver={(e) => handleReorderDragOver(e, link)}
       onDragLeave={(e) => handleReorderDragLeave(e, link)}
       onDrop={(e) => handleReorderDrop(e, link)}
-      className={`group relative bg-white rounded-2xl p-5 border shadow-sm transition-all duration-300 w-full min-w-0 ${
+      onMouseMove={handleSpotlight}
+      style={{ animationDelay: `${Math.min(index, 12) * 60}ms` }}
+      className={`group spotlight-card card-enter relative bg-white rounded-2xl p-5 border shadow-sm transition-all duration-300 w-full min-w-0 ${
         isReorderMode 
           ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300' 
           : 'hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 hover:-translate-y-1'
@@ -484,8 +508,8 @@ export default function App() {
           onClick={(e) => isReorderMode && e.preventDefault()}
           className={`flex-1 flex items-start gap-4 outline-none min-w-0 ${isReorderMode ? 'pointer-events-none' : ''}`}
         >
-          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-            <Globe size={22} />
+          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:border-indigo-200 group-hover:scale-105 transition-all duration-300">
+            <SiteIcon url={link.url} size={26} />
           </div>
           {/* 加入 pr-14 給右上角按鈕留空間，並嚴格加上 min-w-0 */}
           <div className="flex-1 min-w-0 pr-14">
@@ -502,7 +526,13 @@ export default function App() {
 
   // --- 畫面 2：主應用程式 ---
   return (
-    <div className="flex h-[100dvh] bg-white text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden animate-in fade-in duration-500">
+    <div className="flex h-[100dvh] bg-white text-slate-800 selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden animate-in fade-in duration-500">
+      {/* 主畫面動態光斑背景 */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-24 right-[-10%] w-[36rem] h-[36rem] bg-indigo-200/50 rounded-full blur-3xl animate-blob"></div>
+        <div className="absolute bottom-[-20%] left-[15%] w-[32rem] h-[32rem] bg-purple-200/40 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
+        <div className="absolute top-1/3 right-[25%] w-[28rem] h-[28rem] bg-sky-200/30 rounded-full blur-3xl animate-blob animation-delay-4000"></div>
+      </div>
       <ErrorToast />
 
       {/* --- 左側導覽列 (側邊欄) --- */}
@@ -510,7 +540,7 @@ export default function App() {
         <div className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity" onClick={() => setIsSidebarOpen(false)} />
       )}
       
-      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-72 lg:w-80 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-72 lg:w-80 bg-white/80 backdrop-blur-xl border-r border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-5 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
             <Bookmark size={20} className="text-indigo-500" />
@@ -574,8 +604,8 @@ export default function App() {
                     onClick={(e) => isReorderMode && e.preventDefault()}
                     className={`flex items-start gap-3 outline-none flex-1 min-w-0 ${isReorderMode ? 'pointer-events-none' : ''}`}
                   >
-                    <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                      <Globe size={18} />
+                    <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shrink-0 group-hover:border-indigo-200 group-hover:scale-105 transition-all">
+                      <SiteIcon url={link.url} size={20} />
                     </div>
                     {/* 加入 min-w-0 並留出按鈕空間 */}
                     <div className="flex-1 min-w-0 pr-16 w-full">
@@ -615,7 +645,7 @@ export default function App() {
       </aside>
 
       {/* --- 右側主畫面區塊 --- */}
-      <main className="flex-1 h-full overflow-y-auto relative bg-white">
+      <main className="flex-1 h-full overflow-y-auto relative bg-slate-50/40">
         <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-5 sm:pt-10 relative z-10 pb-32">
           
           {/* 極簡單行頂部導覽列 */}
@@ -631,12 +661,12 @@ export default function App() {
                   <button onClick={() => setCurrentFolderId(null)} className="p-1.5 sm:p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0">
                     <ArrowLeft size={22} className="sm:w-6 sm:h-6" />
                   </button>
-                  <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-slate-900 truncate">
+                  <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-slate-900 title-shine truncate">
                     {folders.find(f => f.id === currentFolderId)?.name || '未命名資料夾'}
                   </h1>
                 </div>
               ) : (
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 truncate flex-1">我的資料夾</h1>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 title-shine truncate flex-1">我的資料夾</h1>
               )}
             </div>
             
@@ -662,7 +692,7 @@ export default function App() {
                   <span className="hidden sm:inline ml-2">新增資料夾</span>
                 </button>
               )}
-              <button onClick={openAddModal} className="group flex items-center justify-center p-2 sm:px-5 sm:py-2.5 bg-slate-900 text-white rounded-full font-medium hover:bg-indigo-600 transition-all shadow-lg hover:-translate-y-0.5" title="新增捷徑">
+              <button onClick={openAddModal} className="group flex items-center justify-center p-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/50 hover:-translate-y-0.5" title="新增捷徑">
                 <Plus size={20} className="sm:w-[18px] sm:h-[18px] group-hover:rotate-90 transition-transform" />
                 <span className="hidden sm:inline ml-2">新增捷徑</span>
               </button>
@@ -683,18 +713,20 @@ export default function App() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
-                  {folders.map(folder => (
-                    <div 
+                  {folders.map((folder, i) => (
+                    <div
                       key={folder.id}
                       onClick={() => setCurrentFolderId(folder.id)}
-                      className="group cursor-pointer bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1.5 relative flex flex-col items-center text-center"
+                      onMouseMove={handleSpotlight}
+                      style={{ animationDelay: `${Math.min(i, 12) * 60}ms` }}
+                      className="group spotlight-card card-enter cursor-pointer bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1.5 relative flex flex-col items-center text-center"
                     >
                       <div className="absolute top-2 right-2 sm:top-3 sm:right-3">
                         <button onClick={(e) => handleDeleteFolder(folder.id, e)} className="p-1.5 sm:p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" title="刪除資料夾">
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 group-hover:bg-indigo-100 transition-all">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-indigo-200/60 transition-all">
                         <FolderOpen className="text-indigo-500" size={28} />
                       </div>
                       <h4 className="font-bold text-slate-800 text-base sm:text-lg truncate w-full">{folder.name}</h4>
@@ -720,7 +752,7 @@ export default function App() {
                 }
                 return (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
-                    {folderLinks.map(link => <ShortcutCard key={link.id} link={link} />)}
+                    {folderLinks.map((link, i) => <ShortcutCard key={link.id} link={link} index={i} />)}
                   </div>
                 );
               })()}

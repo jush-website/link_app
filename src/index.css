@@ -1,0 +1,56 @@
+html,
+body,
+#root {
+  font-family: "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* 滑鼠跟隨光暈卡片：--x / --y 由 onMouseMove 寫入 */
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    320px circle at var(--x, 50%) var(--y, 50%),
+    rgb(99 102 241 / 0.14),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* 背景漂浮光斑（登入頁與主畫面共用） */
+  @keyframes blob {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+  }
+  .animate-blob { animation: blob 14s ease-in-out infinite; }
+  .animation-delay-2000 { animation-delay: 2s; }
+  .animation-delay-4000 { animation-delay: 4s; }
+
+  /* 卡片進場：逐張上浮，delay 由 inline style 控制 */
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: none; }
+  }
+  .card-enter { animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  /* 標題流動漸層字 */
+  @keyframes shine {
+    to { background-position: 200% center; }
+  }
+  .title-shine {
+    background-image: linear-gradient(90deg, #312e81, #6366f1, #a855f7, #312e81);
+    background-size: 200% auto;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: shine 6s linear infinite;
+  }
+}
