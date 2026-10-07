@@ -4,6 +4,8 @@
 
 0.4.0 精簡手機導覽與卡片，捷徑操作收在「⋯」選單；提醒設定以獨立視窗開啟，清單位置不變。0.3.0 使用者可按「檢查更新」取得本版。
 
+0.4.1 為 Android 系統列邊界修正版，Windows 發行版維持 0.4.0。Android 使用 Capacitor 8 內建 SystemBars 的 native insetsHandling，搭配 viewport-fit=auto，由原生容器處理狀態列、display cutout、導覽列及鍵盤空間；不要再給 Web 層重複加同一份系統列 padding。共享介面的根節點使用容器百分比高度，頁面本身不捲動，內容區與超過可用高度的表單可捲動。
+
 ## 使用方式
 
 1. 使用原本的 Google 帳號登入，在「我的捷徑」與「待辦提醒」切換。

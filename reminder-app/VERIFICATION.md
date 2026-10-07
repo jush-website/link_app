@@ -1,21 +1,20 @@
-# link_app 0.4.0 手機介面驗證紀錄
+# link_app Android 0.4.1 系統列邊界驗證
 
-此次修改共用前端，縮短手機頁首與卡片、移除重複選單按鈕，捷徑操作與提醒設定改以獨立視窗開啟。原 Google／Firebase 資料路徑與原生通知程式未變更。
+本版修正 Android target SDK 36 的 edge-to-edge 內容遮擋：SystemBars 使用 native insetsHandling／LIGHT style，Android viewport-fit=auto，原生容器預留狀態列、cutout、底部導覽及鍵盤空間。共用前端使用實際容器百分比高度，只有內容及過高的表單捲動；移除登入切换主畫面時不必要的尺寸過渡。
 
 | 檢查 | 結果 |
 | --- | --- |
-| 根目錄與原生容器 ESLint | 通過，0 errors |
-| Web／原生前端 Vite build | 通過；有非阻擋的 bundle 大小及 Browserslist 提示 |
-| Playwright UI | 9 個通過，含 320／393px、單一選單、設定視窗不推移清單、Escape／焦點還原、事項新增修改完成刪除、下載及更新重試 |
-| demo Firebase 整合 | 2 個通過：原 Google UID／跨裝置同步／離線補送／帳號隔離，以及手機捷徑 ⋯ 選單編輯、移動、刪除、設定視窗及清單位置 |
-| 手機視覺檢查 | 393px 捷徑卡片約 66px 高；提醒第一張卡片在頁面上方約 195px。已檢視 320／393px 螢幕截圖，無水平溢出 |
-| Android | assembleDebug 與 testDebugUnitTest 完成；4 個既有 Java 測試結果重用，0 skipped／failures／errors；簽章驗證通過 |
-| Android APK 內容 | 10 個 dist 檔案與 APK assets/public 逐位元組一致，套件 com.jush.remember、versionCode 4、versionName 0.4.0 |
-| Windows ZIP | 打包成功；app.asar 內 17 個 dist／Electron／排程及版本偵測檔案與來源一致，package version 0.4.0，ZIP 裡 app.asar 與打包目錄相同 |
-| Google／原生通知／系統更新安裝 | 尚未實機驗證；沿用原專案、套件及 debug 簽章，Android 設定步驟見 README |
+| 根目錄／原生容器 lint | 通過，0 errors |
+| Web／原生前端 build | 通過，既有非阻擋 chunk 大小／Browserslist 提示 |
+| Playwright UI | 11 個通過：原有事項、下載及更新操作，加上 393px × 420／360／760 可用高度變化時登入與表單可操作、沒有外層頁面溢出、長清單只有 main 捲動、sticky 導覽及清單底部操作保留 |
+| Android build | assembleDebug 與 testDebugUnitTest 完成；4 個未改 Java 測試重用既有通過結果 |
+| APK | com.jush.remember、versionCode 5、versionName 0.4.1；原 debug 簽章驗證通過 |
+| APK 打包內容 | SystemBars native／LIGHT config 與 viewport-fit=auto 已存在 APK；10 個 dist 檔案逐位元組比對相同 |
+| 網站下載 fallback | Windows 0.4.0、Android 0.4.1 分別提供合法公開附件，查詢失敗仍可下載；發布後另核對正式 feed |
+| Windows | 本版不重新發布 Windows 二進位檔，維持已發布 0.4.0 |
+| 真實 Android 系統列／鍵盤／橫向 cutout | 尚未實機驗證；此機器無 Android emulator／KVM，瀏覽器 viewport 縮放不能替代裝置系統列測試 |
+| 真實 Google OAuth、原生通知及覆蓋安裝 | 尚未實機驗證；未變更 Auth／通知核心／資料路徑 |
 
-本版新執行的瀏覽器測試共 11 個（9 UI、2 Firebase emulator），Java 的 4 個未修改測試重用既有通過結果。未重跑未修改的 19 個 Node 核心／排程／loopback／更新測試；這些套件先前 0.3.0 已通過。
+未重跑未變更的 Node 核心／同步／下載器套件；前版相關檢查已通過。本版 UI 測試攔截正式 Auth 請求，使用訪客本機資料，不寫入正式 Firebase。
 
-所有 Firebase 寫入測試只使用 demo-remember，不修改正式使用者資料。測試 Google JWT 未簽章，不能代替真實 OAuth。Android 使用原 debug keystore：SHA-1 4C:04:2D:C9:C2:D1:2B:B5:64:C7:AF:EE:39:99:7B:97:34:DC:07:5B。Windows 未程式碼簽章，Android 是 debug APK；安裝包不納入 Git。
-
-0.3.0 可自動偵測本版，Android 直接覆蓋安裝以保留資料，Windows 完整解壓縮後從通知區結束舊程式再開新版。網站部署与公開 asset 驗證結果於 GitHub Release 更新。
+APK 簽章 SHA-1：4C:04:2D:C9:C2:D1:2B:B5:64:C7:AF:EE:39:99:7B:97:34:DC:07:5B。直接覆蓋安裝保留資料，不要解除安裝或清除資料。App 啟動或「檢查更新」可偵測新版；沒有靜默安裝。

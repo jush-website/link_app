@@ -353,7 +353,7 @@ export default function App() {
   // --- 載入畫面與錯誤防護 ---
   if (!isAuthLoaded) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 0, backgroundColor: '#F8FAFC', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <div style={{ width: '48px', height: '48px', border: '4px solid #E2E8F0', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
         <p style={{ marginTop: '20px', color: '#475569', fontWeight: 500 }}>系統介面載入中...</p>
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
@@ -382,14 +382,14 @@ export default function App() {
   // --- 畫面 1：登入畫面 ---
   if (!showMainApp) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="h-full min-h-0 bg-[#F8FAFC] flex flex-col items-center p-4 relative overflow-y-auto">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob"></div>
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[40%] h-[40%] bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000"></div>
 
         <ErrorToast />
 
-        <div className="bg-white/80 backdrop-blur-xl p-8 sm:p-12 rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 max-w-md w-full relative z-10 text-center animate-in fade-in zoom-in-95 duration-500">
+        <div className="bg-white/80 backdrop-blur-xl p-8 sm:p-12 rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 max-w-md w-full my-auto shrink-0 relative z-10 text-center animate-in fade-in zoom-in-95 duration-500">
           <div className="w-20 h-20 mx-auto bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-8 transform -rotate-3 hover:rotate-0 transition-transform">
             <Bookmark size={36} className="text-white" />
           </div>
@@ -487,7 +487,7 @@ export default function App() {
 
   // --- 畫面 2：主應用程式 ---
   return (
-    <div className="flex h-[100dvh] bg-white text-slate-800 selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden animate-in fade-in duration-500">
+    <div className="flex h-full min-h-0 bg-white text-slate-800 selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden">
       {/* 主畫面動態光斑背景 */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
         <div className="absolute -top-24 right-[-10%] w-[36rem] h-[36rem] bg-indigo-200/50 rounded-full blur-3xl animate-blob"></div>
@@ -742,7 +742,7 @@ export default function App() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6" onClick={closeModal}>
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in"></div>
-          <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl max-h-full overflow-y-auto animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Bookmark size={20} className="text-indigo-500" />
@@ -778,7 +778,7 @@ export default function App() {
       {isFolderModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6" onClick={() => !isSaving && setIsFolderModalOpen(false)}>
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in"></div>
-          <div className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl max-h-full overflow-y-auto animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <FolderPlus size={20} className="text-indigo-500" />
@@ -804,7 +804,7 @@ export default function App() {
       {isMoveModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6" onClick={() => setIsMoveModalOpen(false)}>
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in"></div>
-          <div className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl max-h-full overflow-y-auto animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <MoveRight size={20} className="text-indigo-500" />

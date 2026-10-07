@@ -13,7 +13,7 @@ export default function ReminderComposer({ form, setForm, editing, parsed, updat
     return () => { element.close(); if (invoker?.isConnected) invoker.focus(); };
   }, []);
 
-  return <dialog ref={dialog} aria-labelledby="reminder-composer-title" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }} onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }} className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-2xl bg-white p-0 text-slate-800 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm">
+  return <dialog ref={dialog} aria-labelledby="reminder-composer-title" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }} onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }} className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto rounded-2xl bg-white p-0 text-slate-800 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm">
     <form onSubmit={onSave} className="p-5 sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-3"><div><h2 id="reminder-composer-title" className="text-lg font-bold">{editing ? '修改提醒事項' : '新增提醒事項'}</h2><p className="mt-1 text-xs text-slate-500">儲存後回到事項清單。</p></div><button type="button" aria-label="關閉事項表單" disabled={busy} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 disabled:opacity-50" onClick={onClose}><X size={19} /></button></div>
       {error && <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
