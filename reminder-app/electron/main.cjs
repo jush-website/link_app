@@ -69,6 +69,7 @@ function allowedSender(event) {
 
 async function start() {
   scheduleModel = await import('../src/desktopSchedule.js');
+  const { isUpdateDownload } = await import('../src/updates.js');
   dataPath = path.join(app.getPath('userData'), 'reminder-schedules.json');
   try {
     const retained = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
@@ -120,6 +121,14 @@ async function start() {
     login = startGoogleLogin({ directory: path.join(__dirname, '../dist'), openExternal: url => shell.openExternal(url) });
     try { const result = await login; showWindow(); return result; }
     finally { login = null; }
+  });
+  ipcMain.handle('app:info', event => {
+    if (!allowedSender(event)) throw new Error('Unauthorized update source');
+    return { version: app.getVersion(), platform: 'windows' };
+  });
+  ipcMain.handle('app:open-update', async (event, url) => {
+    if (!allowedSender(event) || !isUpdateDownload(url)) throw new Error('Unauthorized update download');
+    await shell.openExternal(url);
   });
 
   await mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
