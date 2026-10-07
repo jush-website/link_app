@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Globe, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu, ListOrdered, Bell } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Globe, AlignLeft, Bookmark, LogOut, User, AlertCircle, ArrowRight, FolderPlus, ArrowLeft, MoveRight, FolderOpen, Menu, ListOrdered, Bell, MoreHorizontal } from 'lucide-react';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 
 import { auth, db, appId, ensureGuestAuth } from './firebase.js';
 import { signInGoogle, openShortcut, googleLoginError } from './platform.js';
 import RemindersPanel from './RemindersPanel.jsx';
+import AppDialog from './AppDialog.jsx';
 import { useTasks } from '../reminder-app/src/useTasks.js';
 import { useReminderNotifications } from './useReminderNotifications.js';
 
@@ -39,6 +40,7 @@ export default function App() {
   const reminders = useTasks();
   useReminderNotifications(reminders);
   const [view, setView] = useState('links');
+  const [shortcutActions, setShortcutActions] = useState(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
   // 核心資料狀態
@@ -415,8 +417,9 @@ export default function App() {
   }
 
   // --- 捷徑卡片共用元件 ---
-  const ShortcutCard = ({ link, index = 0 }) => (
+  const renderShortcut = ({ link, index = 0 }) => (
     <div
+      key={link.id}
       draggable={isReorderMode}
       onDragStart={(e) => handleDragStart(e, link)}
       onDragEnd={handleDragEnd}
@@ -425,7 +428,7 @@ export default function App() {
       onDrop={(e) => handleReorderDrop(e, link)}
       onMouseMove={handleSpotlight}
       style={{ animationDelay: `${Math.min(index, 12) * 60}ms` }}
-      className={`group spotlight-card card-enter relative bg-white rounded-2xl p-5 border shadow-sm transition-all duration-300 w-full min-w-0 ${
+      className={`group spotlight-card card-enter relative bg-white rounded-2xl p-3 sm:p-5 border shadow-sm transition-all duration-300 w-full min-w-0 ${
         isReorderMode 
           ? 'cursor-grab active:cursor-grabbing hover:border-indigo-300' 
           : 'hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 hover:-translate-y-1'
@@ -437,7 +440,7 @@ export default function App() {
     >
       {/* 非排序模式時才顯示操作按鈕 */}
       {!isReorderMode && (
-        <div className="absolute top-4 right-4 flex items-center gap-1 z-10">
+        <div className="absolute top-4 right-4 hidden sm:flex items-center gap-1 z-10">
           <button onClick={(e) => openMoveModal(link, e)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg shadow-sm border border-slate-100 transition-all" title="移動至...">
             <MoveRight size={16} />
           </button>
@@ -450,8 +453,9 @@ export default function App() {
         </div>
       )}
 
+      {!isReorderMode && <button type="button" aria-label={`操作「${link.title}」`} onClick={() => setShortcutActions(link)} className="absolute right-2 top-2 flex size-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50 sm:hidden"><MoreHorizontal size={21} /></button>}
       {/* 強制加入 min-w-0 解決 flex 內的字體溢出問題 */}
-      <div className="flex items-center mt-2 w-full min-w-0">
+      <div className="flex items-center sm:mt-2 w-full min-w-0">
         {/* 排序模式時顯示拖拉圖示 (三條線) */}
         {isReorderMode && (
           <div className="text-slate-300 flex-shrink-0 mr-4 ml-1">
@@ -463,16 +467,16 @@ export default function App() {
           onClick={(e) => { if (isReorderMode) e.preventDefault(); else openShortcut(e, link.url); }}
           target="_blank" 
           rel="noopener noreferrer" 
-          className={`flex-1 flex items-start gap-4 outline-none min-w-0 ${isReorderMode ? 'pointer-events-none' : ''}`}
+          className={`flex-1 flex items-start gap-3 sm:gap-4 outline-none min-w-0 ${isReorderMode ? 'pointer-events-none' : ''}`}
         >
-          <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:border-indigo-200 group-hover:scale-105 transition-all duration-300">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 flex-shrink-0 group-hover:border-indigo-200 group-hover:scale-105 transition-all duration-300">
             <SiteIcon url={link.url} size={26} />
           </div>
           {/* 加入 pr-14 給右上角按鈕留空間，並嚴格加上 min-w-0 */}
-          <div className="flex-1 min-w-0 pr-14">
-            <h3 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate w-full block">{link.title}</h3>
-            <p className="text-sm text-indigo-500/80 truncate w-full block mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
-            {link.description && <p className="text-sm text-slate-500 mt-2.5 line-clamp-2 leading-relaxed">{link.description}</p>}
+          <div className="flex-1 min-w-0 pr-10 sm:pr-14">
+            <h3 className="text-base sm:text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate w-full block">{link.title}</h3>
+            <p className="text-xs sm:text-sm text-indigo-500/80 truncate w-full block mt-0.5">{link.url.replace(/^https?:\/\//, '')}</p>
+            {link.description && <p className="text-xs sm:text-sm text-slate-500 mt-1 sm:mt-2.5 line-clamp-2 leading-relaxed">{link.description}</p>}
           </div>
         </a>
       </div>
@@ -608,25 +612,22 @@ export default function App() {
 
       {/* --- 右側主畫面區塊 --- */}
       <main className="flex-1 h-full overflow-y-auto relative bg-slate-50/40">
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 pt-5 sm:pt-10 relative z-10 pb-32">
+        <div className="max-w-5xl mx-auto px-3 sm:px-8 sm:pt-10 relative z-10 pb-24">
           
-          <div className="md:hidden sticky top-0 z-20 flex gap-2 mb-5 bg-slate-50/95 py-2 backdrop-blur" role="group" aria-label="切換功能">
-            <button type="button" onClick={() => setIsSidebarOpen(true)} aria-label="開啟功能選單" className="p-2 rounded-xl border border-slate-200 bg-white"><Menu size={20} /></button>
-            <button type="button" aria-pressed={view === 'links'} onClick={() => setView('links')} className={`px-4 py-2 rounded-xl text-sm font-bold ${view === 'links' ? 'bg-indigo-100 text-indigo-700' : 'bg-white text-slate-500'}`}>我的捷徑</button>
-            <button type="button" aria-pressed={view === 'reminders'} onClick={() => setView('reminders')} className={`px-4 py-2 rounded-xl text-sm font-bold ${view === 'reminders' ? 'bg-indigo-100 text-indigo-700' : 'bg-white text-slate-500'}`}>待辦提醒</button>
+          <div className="md:hidden sticky top-0 z-20 flex items-center gap-1 mb-3 -mx-3 border-b border-slate-200/60 bg-slate-50/95 px-3 py-1.5 backdrop-blur" role="group" aria-label="切換功能">
+            <button type="button" onClick={() => setIsSidebarOpen(true)} aria-label="開啟功能選單" aria-expanded={isSidebarOpen} className="flex size-11 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-white"><Menu size={20} /></button>
+            <button type="button" aria-pressed={view === 'links'} onClick={() => setView('links')} className={`min-h-11 flex-1 px-3 py-2 rounded-xl text-sm font-bold ${view === 'links' ? 'bg-indigo-100 text-indigo-700' : 'bg-white text-slate-500'}`}>我的捷徑</button>
+            <button type="button" aria-pressed={view === 'reminders'} onClick={() => setView('reminders')} className={`min-h-11 flex-1 px-3 py-2 rounded-xl text-sm font-bold ${view === 'reminders' ? 'bg-indigo-100 text-indigo-700' : 'bg-white text-slate-500'}`}>待辦提醒</button>
           </div>
           {view === 'reminders' ? <RemindersPanel store={reminders} onGoogleLogin={handleGoogleLogin} loggingIn={loggingIn} /> : <>
           {/* 極簡單行頂部導覽列 */}
-          <header className="flex items-center justify-between gap-3 mb-6 sm:mb-10 pb-4 border-b border-slate-200/60">
+          <header className="flex items-center justify-between gap-2 mb-3 sm:mb-10 pb-2 sm:pb-4 border-b border-slate-200/60">
             {/* 左側：漢堡選單 + 標題 */}
             <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-              <button className="md:hidden p-2 -ml-2 text-slate-600 hover:bg-slate-200 rounded-xl transition-colors shrink-0" aria-label="開啟功能選單" onClick={() => setIsSidebarOpen(true)}>
-                <Menu size={24} />
-              </button>
               
               {currentFolderId ? (
                 <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-1 animate-in slide-in-from-left-4 duration-300">
-                  <button onClick={() => setCurrentFolderId(null)} className="p-1.5 sm:p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0">
+                  <button onClick={() => setCurrentFolderId(null)} aria-label="返回資料夾" className="flex size-11 items-center justify-center sm:p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0">
                     <ArrowLeft size={22} className="sm:w-6 sm:h-6" />
                   </button>
                   <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-slate-900 title-shine truncate">
@@ -634,7 +635,7 @@ export default function App() {
                   </h1>
                 </div>
               ) : (
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 title-shine truncate flex-1">我的資料夾</h1>
+                <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight text-slate-900 title-shine truncate flex-1">我的資料夾</h1>
               )}
             </div>
             
@@ -643,7 +644,7 @@ export default function App() {
               {/* 排序模式切換按鈕 */}
               <button 
                 onClick={() => setIsReorderMode(!isReorderMode)} 
-                className={`flex items-center justify-center p-2 sm:px-4 sm:py-2.5 border rounded-full font-medium transition-all shadow-sm ${
+                className={`flex items-center justify-center min-h-11 min-w-11 p-2 sm:px-4 sm:py-2.5 border rounded-full font-medium transition-all shadow-sm ${
                   isReorderMode 
                     ? 'bg-indigo-100 text-indigo-700 border-indigo-200 hover:bg-indigo-200' 
                     : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
@@ -655,12 +656,12 @@ export default function App() {
               </button>
 
               {currentFolderId === null && (
-                <button onClick={() => setIsFolderModalOpen(true)} className="flex items-center justify-center p-2 sm:px-4 sm:py-2.5 bg-white text-slate-700 border border-slate-200 rounded-full font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm" title="新增資料夾">
+                <button onClick={() => setIsFolderModalOpen(true)} className="flex items-center justify-center min-h-11 min-w-11 p-2 sm:px-4 sm:py-2.5 bg-white text-slate-700 border border-slate-200 rounded-full font-medium hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm" title="新增資料夾">
                   <FolderPlus size={20} className="sm:w-[18px] sm:h-[18px]" />
                   <span className="hidden sm:inline ml-2">新增資料夾</span>
                 </button>
               )}
-              <button onClick={openAddModal} className="group flex items-center justify-center p-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/50 hover:-translate-y-0.5" title="新增捷徑">
+              <button onClick={openAddModal} className="group flex items-center justify-center min-h-11 min-w-11 p-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/50 hover:-translate-y-0.5" title="新增捷徑">
                 <Plus size={20} className="sm:w-[18px] sm:h-[18px] group-hover:rotate-90 transition-transform" />
                 <span className="hidden sm:inline ml-2">新增捷徑</span>
               </button>
@@ -687,14 +688,14 @@ export default function App() {
                       onClick={() => setCurrentFolderId(folder.id)}
                       onMouseMove={handleSpotlight}
                       style={{ animationDelay: `${Math.min(i, 12) * 60}ms` }}
-                      className="group spotlight-card card-enter cursor-pointer bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1.5 relative flex flex-col items-center text-center"
+                      className="group spotlight-card card-enter cursor-pointer bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1.5 relative flex flex-col items-center text-center"
                     >
                       <div className="absolute top-2 right-2 sm:top-3 sm:right-3">
                         <button onClick={(e) => handleDeleteFolder(folder.id, e)} className="p-1.5 sm:p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" title="刪除資料夾">
                           <Trash2 size={16} />
                         </button>
                       </div>
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center mb-3 sm:mb-4 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-indigo-200/60 transition-all">
+                      <div className="w-11 h-11 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100 flex items-center justify-center mb-2 sm:mb-4 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-indigo-200/60 transition-all">
                         <FolderOpen className="text-indigo-500" size={28} />
                       </div>
                       <h4 className="font-bold text-slate-800 text-base sm:text-lg truncate w-full">{folder.name}</h4>
@@ -719,8 +720,8 @@ export default function App() {
                   );
                 }
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
-                    {folderLinks.map((link, i) => <ShortcutCard key={link.id} link={link} index={i} />)}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-5">
+                    {folderLinks.map((link, i) => renderShortcut({ link, index: i }))}
                   </div>
                 );
               })()}
@@ -730,6 +731,13 @@ export default function App() {
         </div>
       </main>
 
+      {shortcutActions && <AppDialog title={shortcutActions.title} onClose={() => setShortcutActions(null)}>
+        <div className="grid gap-2">
+          <button type="button" className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-slate-600 hover:bg-slate-50" onClick={event => { setShortcutActions(null); openMoveModal(shortcutActions, event); }}><MoveRight size={19} />移動捷徑</button>
+          <button type="button" className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-slate-600 hover:bg-slate-50" onClick={event => { setShortcutActions(null); openEditModal(shortcutActions, event); }}><Edit2 size={19} />編輯捷徑</button>
+          <button type="button" className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-left text-rose-600 hover:bg-rose-50" onClick={event => { setShortcutActions(null); handleDelete(shortcutActions.id, event); }}><Trash2 size={19} />刪除捷徑</button>
+        </div>
+      </AppDialog>}
       {/* --- 新增/修改捷徑 Modal --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6" onClick={closeModal}>
@@ -807,17 +815,17 @@ export default function App() {
             <div className="p-4 max-h-72 overflow-y-auto scrollbar-thin">
               {/* 如果目前不是在未分類，才顯示「移至未分類」 */}
               {linkToMove?.folderId !== null && (
-                <div onClick={() => handleMoveLink(null)} className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 border-transparent hover:bg-slate-50 text-slate-700 font-medium">
+                <button type="button" onClick={() => handleMoveLink(null)} className="flex w-full items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 border-transparent hover:bg-slate-50 text-slate-700 font-medium">
                   <Menu size={20} className="text-slate-400" />
                   <span>未分類導覽列</span>
-                </div>
+                </button>
               )}
               {/* 顯示「不是目前所在位置」的所有資料夾 */}
               {folders.filter(f => f.id !== linkToMove?.folderId).map(folder => (
-                <div key={folder.id} onClick={() => handleMoveLink(folder.id)} className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 border-transparent hover:bg-slate-50 text-slate-700 font-medium mt-1">
+                <button type="button" key={folder.id} onClick={() => handleMoveLink(folder.id)} className="flex w-full items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 border-transparent hover:bg-slate-50 text-slate-700 font-medium mt-1">
                   <FolderOpen size={20} className="text-slate-400" />
                   <span className="truncate">{folder.name}</span>
-                </div>
+                </button>
               ))}
               
               {folders.filter(f => f.id !== linkToMove?.folderId).length === 0 && linkToMove?.folderId === null && (

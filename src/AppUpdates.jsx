@@ -65,6 +65,6 @@ export default function AppUpdates() {
         {candidate && <button className="flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-700" onClick={async () => { try { setDownloadError(''); await openAppUpdate(candidate.url); } catch { setDownloadError('無法開啟下載，請確認已安裝瀏覽器後重試。'); } }}><ArrowDownToLine size={16} />下載更新</button>}
         <button disabled={checking || !info.version} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 disabled:opacity-50" onClick={() => check(true)}><RefreshCw size={15} className={checking ? 'animate-spin' : ''} />檢查更新</button>
       </div>
-    </section> : <button className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-lg hover:bg-slate-50" onClick={() => { setOpen(true); check(true); }}><RefreshCw size={16} />{candidate ? `新版 ${candidate.version}` : '檢查更新'}</button>}
+    </section> : <button aria-label={candidate ? `新版 ${candidate.version}` : '檢查更新'} className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-lg hover:bg-slate-50 sm:px-4" onClick={() => { setOpen(true); check(true); }}><RefreshCw size={16} /><span className={candidate ? '' : 'hidden sm:inline'}>{candidate ? `新版 ${candidate.version}` : '檢查更新'}</span></button>}
   </aside>;
 }

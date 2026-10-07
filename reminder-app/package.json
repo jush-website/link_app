@@ -1,6 +1,6 @@
 {
   "name": "remember-reminders",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Original link_app with shared Google login and integrated reminders",
   "author": "jush-website",
