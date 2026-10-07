@@ -1,0 +1,60 @@
+import { test, expect } from '@playwright/test';
+async function guest(page) {
+  await page.route('https://identitytoolkit.googleapis.com/**', route => route.abort());
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '使用 Google 帳號登入', exact: true })).toBeVisible();
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+  await page.getByRole('button', { name: '先以訪客身分體驗' }).click();
+  await expect(page.getByRole('heading', { name: '我的資料夾', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /^待辦提醒/ }).click();
+  await expect(page.getByRole('heading', { name: '待辦提醒', exact: true })).toBeVisible();
+}
+test('原捷徑介面整合提醒：記錄、切換、重載、修改、完成及刪除', async ({ page }) => {
+  await guest(page);
+  await page.getByLabel('事項內容').fill('下週一要訂便當');
+  await expect(page.getByText('辨識到「下週一」', { exact: false })).toBeVisible();
+  expect(await page.getByLabel('到期日期', { exact: true }).inputValue()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  await page.getByRole('button', { name: '記下來', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '訂便當', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '我的捷徑', exact: true }).click();
+  await expect(page.getByRole('button', { name: '新增捷徑', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '新增資料夾', exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: /^待辦提醒/ }).click();
+  await expect(page.getByRole('heading', { name: '訂便當', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '編輯「訂便當」' }).click();
+  await page.getByLabel('事項內容').fill('訂 12 個便當');
+  await page.getByLabel('提醒時間', { exact: true }).fill('10:30');
+  await page.getByLabel('提醒間隔天數').fill('3');
+  await page.getByRole('button', { name: '儲存修改', exact: true }).click();
+  await expect(page.getByText('每 3 天 10:30', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '完成「訂 12 個便當」' }).click();
+  await page.getByRole('button', { name: /^已完成/ }).click();
+  await expect(page.getByRole('heading', { name: '訂 12 個便當', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '重新開啟「訂 12 個便當」' }).click();
+  await page.getByRole('button', { name: /^待辦事項/ }).click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: '刪除「訂 12 個便當」' }).click();
+  await expect(page.getByRole('heading', { name: '訂 12 個便當', exact: true })).toHaveCount(0);
+});
+test('Android 尺寸可切換捷徑與提醒，樣式不依賴 CDN', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.route('https://cdn.tailwindcss.com/**', route => route.abort());
+  await guest(page);
+  await page.getByLabel('事項內容').fill('記得買洗衣精');
+  await page.getByRole('button', { name: '記下來', exact: true }).click();
+  await expect(page.getByText('未指定到期日', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const padding = await page.getByRole('button', { name: '記下來', exact: true }).evaluate(el => getComputedStyle(el).paddingLeft);
+  expect(parseFloat(padding)).toBeGreaterThan(0);
+  await page.screenshot({ path: 'test-results/android-integrated.png', fullPage: true });
+});
+test('Windows 視窗：共用 Google 登入入口與捷徑分類', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await guest(page);
+  await page.getByLabel('事項內容').fill('下週一要訂便當');
+  await page.getByRole('button', { name: '記下來', exact: true }).click();
+  await page.screenshot({ path: 'test-results/windows-integrated.png', fullPage: true });
+  await expect(page.getByRole('button', { name: '使用 Google 帳號登入', exact: true })).toBeVisible();
+  await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+});

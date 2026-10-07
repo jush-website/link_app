@@ -1,0 +1,11 @@
+{
+  "appId": "com.jush.remember",
+  "appName": "捷徑與提醒",
+  "webDir": "dist",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_reminder",
+      "iconColor": "#355e4c"
+    }
+  }
+}
