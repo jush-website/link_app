@@ -103,3 +103,9 @@ Windows 使用 Electron 的原生通知與通知區；Google 登入透過只在�
 此雲端的原生建置 helper 為 /workspace/shared/build-remember-android.py，工具鏈位於 /workspace/tools/jdk-21、/workspace/tools/android-sdk、/workspace/tools/gradle-cache。TLS 與下載校驗保持啟用。
 
 Windows 包裝是未程式碼簽章 ZIP，Android 使用 debug 簽章。產物不納入 Git，測試 keystore 也不納入 Git。
+
+## Windows 下載器維護
+
+`node scripts/create-windows-downloader.cjs manifest.json Download-LinkApp-Windows.cmd` 以包含 ZIP 和依序各分段名稱、大小及 SHA-256 的 manifest 產生單一 CMD。PowerShell 本體保存在 scripts/windows-downloader.ps1；不變更 execution policy，不執行 ZIP 內程式。錯誤重試 3 次，保留正確分段與校验完整 ZIP。發布時沿用已驗證的二進位校验碼，更新下載器及 SHA256SUMS，保存舊附件以供追溯。
+
+`POWERSHELL_EXECUTABLE=/path/to/pwsh node --test tests/windows-downloader.test.js` 執行損壞／斷線重試、续傳、跨版本校验重用與整體 ZIP 校验測試。Windows 可使用現有 powershell.exe；Linux 需要 PowerShell 7。沒有 PowerShell 的測試會明確標為 skipped。
