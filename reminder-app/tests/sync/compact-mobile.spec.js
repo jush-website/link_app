@@ -1,0 +1,58 @@
+import { test, expect } from '@playwright/test';
+
+test('手機捷徑卡片精簡，操作選單可編輯、移動及刪除；提醒清單保持靠上', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.context().grantPermissions(['notifications']);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '使用 Google 帳號登入', exact: true })).toBeVisible();
+  await page.evaluate(async () => { await (await import('/tests/fixtures/emulator-auth.js')).loginGoogle(`compact-${Date.now()}@demo.invalid`); });
+  await expect(page.getByRole('heading', { name: '我的資料夾' })).toBeVisible();
+  await page.getByRole('button', { name: '新增資料夾', exact: true }).click();
+  await page.getByPlaceholder('例如：設計資源、工作專案...').fill('Minar');
+  await page.getByRole('button', { name: '建立', exact: true }).click();
+  await page.getByRole('heading', { name: 'Minar', exact: true }).click();
+  for (const title of ['碩士專案排程', '山羊資料-hackmd', '縣府資料夾', '活動照片']) {
+    await page.getByRole('button', { name: '新增捷徑', exact: true }).click();
+    await page.getByPlaceholder('例如：Google, Figma...').fill(title);
+    await page.getByPlaceholder('例如：https://...').fill('https://example.com/resource');
+    await page.getByRole('button', { name: '儲存', exact: true }).click();
+    await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole('button', { name: '開啟功能選單', exact: true })).toHaveCount(1);
+  const card = page.locator('.spotlight-card').first();
+  await expect.poll(async () => (await card.boundingBox())?.height ?? Infinity).toBeLessThan(90);
+  await expect.poll(async () => (await card.boundingBox())?.y ?? Infinity).toBeLessThan(160);
+  await page.screenshot({ path: 'test-results/compact-mobile-shortcuts.png' });
+  const actions = page.getByRole('button', { name: '操作「碩士專案排程」', exact: true });
+  await actions.click();
+  await expect(page.getByRole('dialog', { name: '碩士專案排程' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(actions).toBeFocused();
+  await actions.click();
+  await page.getByRole('button', { name: '編輯捷徑', exact: true }).click();
+  await page.getByPlaceholder('例如：Google, Figma...').fill('碩士專案排程新版');
+  await page.getByRole('button', { name: '修改', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '碩士專案排程新版', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '操作「活動照片」', exact: true }).click();
+  await page.getByRole('button', { name: '移動捷徑', exact: true }).click();
+  await page.getByRole('button', { name: '未分類導覽列', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '活動照片', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '操作「山羊資料-hackmd」', exact: true }).click();
+  await page.getByRole('button', { name: '刪除捷徑', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '山羊資料-hackmd', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '待辦提醒', exact: true }).click();
+  await page.getByRole('button', { name: '新增事項', exact: true }).click();
+  await page.getByLabel('事項內容').fill('下週一要訂郭家偉便當');
+  await page.getByRole('button', { name: '記下來', exact: true }).click();
+  await page.getByRole('button', { name: '關閉提醒提示' }).click();
+  const task = page.getByRole('article');
+  expect((await task.boundingBox()).y).toBeLessThan(220);
+  const before = await task.boundingBox();
+  await page.getByRole('button', { name: '提醒設定', exact: true }).click();
+  expect((await task.boundingBox()).y).toBe(before.y);
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: 'test-results/compact-mobile-reminders.png' });
+  await page.setViewportSize({ width: 320, height: 740 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/compact-mobile-320.png' });
+});
