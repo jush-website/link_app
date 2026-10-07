@@ -1,8 +1,26 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { App as NativeApp } from '@capacitor/app';
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
 import { auth, googleWebClientId } from './firebase.js';
+import { isUpdateDownload } from '../reminder-app/src/updates.js';
 
 const nativeGoogle = registerPlugin('LinkGoogleAuth');
+
+export async function installedAppInfo() {
+  if (window.reminderDesktop?.getAppInfo) return window.reminderDesktop.getAppInfo();
+  if (Capacitor.getPlatform() === 'android') {
+    const { version } = await NativeApp.getInfo();
+    return { version, platform: 'android' };
+  }
+  return null;
+}
+
+export async function openAppUpdate(url) {
+  if (!isUpdateDownload(url)) throw new Error('更新下載網址無效。');
+  if (window.reminderDesktop?.openUpdate) return window.reminderDesktop.openUpdate(url);
+  if (Capacitor.getPlatform() === 'android') return nativeGoogle.openExternal({ url });
+  throw new Error('請在桌面工具或 Android App 內更新。');
+}
 
 export async function signInGoogle() {
   if (window.reminderDesktop) {

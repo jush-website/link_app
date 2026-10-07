@@ -5,14 +5,28 @@
 ## 使用方式
 
 1. 使用原本的 Google 帳號登入，在「我的捷徑」與「待辦提醒」切換。
-2. 輸入「下週一要訂便當」，確認到期日。也支援今天、明天、後天、週幾、10/12、10月12日、2026-10-12；無日期事項也可儲存。
+2. 清單與填寫表單分開，按「新增事項」或編輯才開啟表單，儲存後關閉。輸入「下週一要訂便當」，確認到期日。也支援今天、明天、後天、週幾、10/12、10月12日、2026-10-12；無日期事項也可儲存。
 3. 預設每天 09:00 提醒直到完成。每件事情可設定提醒時間和 1–30 天間隔；到期後仍提醒，勾選完成才停止。
 4. 開啟提醒設定、允許通知並送出測試通知；Android 可再允許精確提醒。
 5. 訪客事項沿用本機儲存鍵；Google 登入後可按「匯入本機事項」。不自動混入其他使用者資料。
 
 Windows 10／11 x64：完整解壓縮打包 ZIP，再執行 Remember.exe。Google 登入會開啟預設瀏覽器，按 Google 登入完成後回到工具。關閉視窗後留在通知區，仍會同步與提醒；通知區的「結束程式」會停止提醒。
 
-Android 7.0 以上：安装 debug APK，開啟後允許通知。套件 com.jush.remember 與原測試版相同，可使用同簽章更新，應用程式名稱為「捷徑與提醒」。
+Android 7.0 以上：安裝 debug APK，開啟後允許通知。套件 com.jush.remember 與原測試版相同，可使用同簽章更新，應用程式名稱為「捷徑與提醒」。
+
+## 自動偵測新版
+
+0.3.0 起自動在啟動、視窗／App 恢復，以及六小時的檢查時點讀取公開 GitHub Releases。不傳送 Google 帳號或本機事項，也不需要把 GitHub token 放入安裝包。成功檢查快取六小時，失敗十五分鐘後可再自動重試；手動「檢查更新」可立即重查，重疊請求會合併。
+
+只選 jush-website/link_app 的已發布 link-app-vX.Y.Z，依數字版本比對，忽略草稿及缺少對應安裝包的版本。目前亦接受已發布的測試版，提示會標示「新版為測試版」。Windows 開啟這個版本的 Download-LinkApp-Windows.cmd（或完整 ZIP）；Android 開啟對應版本 APK。下載 URL 只允許這個 repository 的版本化 HTTPS release assets，Windows IPC 另驗證 sender。
+
+找到新版後會提示，可先收起、之後再下載。離線／逾時／API 限流會顯示檢查失敗，保留已找到的更新；不會誤報為最新版本。通知提醒及雲端同步不依賴版本檢查成功。
+
+這是**自動偵測與下載入口**，沒有靜默安裝：Windows 需執行下載工具、解壓新版，從通知區結束舊程式再開新版；Android 由系統確認 APK 安裝與瀏覽器的未知來源權限。直接覆蓋更新、保留原資料，不要解除安裝或清除儲存空間。
+
+**0.1.0／0.2.0 必須先手動安裝 0.3.0 一次**，舊安裝包沒有版本檢查程式，無法事後自動加上。版本及簽章請沿用，Windows 的 appId／productName 與 Android package 均不變。
+
+發布新版時須同步提高 package.json／lockfile 的 version、Android versionName 與 versionCode，保留同一簽章。使用 tag link-app-vX.Y.Z，先建立 draft，上傳並驗證平台安裝包後才 publish；Windows helper 名稱維持 Download-LinkApp-Windows.cmd，APK 使用 LinkApp-X.Y.Z-android-debug.apk（或 LinkApp-X.Y.Z-android.apk）。此偵測直接使用 Releases metadata，不需維護另一個更新 manifest。
 
 ## Android Google 登入設定
 

@@ -36,6 +36,7 @@ test('Google 帳號共用捷徑、資料夾及提醒，兩端修改和完成同�
     await second.getByRole('button', { name: /^待辦提醒/ }).first().click();
     await expect(second.getByText('雲端已同步', { exact: true })).toBeVisible();
     await reminders(first);
+    await first.getByRole('button', { name: '新增事項', exact: true }).click();
     await first.getByLabel('事項內容').fill('下週一要訂便當');
     await first.getByRole('button', { name: '記下來', exact: true }).click();
     await expect(second.getByRole('heading', { name: '訂便當', exact: true })).toBeVisible();

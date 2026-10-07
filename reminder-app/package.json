@@ -1,6 +1,6 @@
 {
   "name": "remember-reminders",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Original link_app with shared Google login and integrated reminders",
   "author": "jush-website",
@@ -56,6 +56,7 @@
       "electron/**/*",
       "src/model.js",
       "src/desktopSchedule.js",
+      "src/updates.js",
       "package.json"
     ],
     "win": {

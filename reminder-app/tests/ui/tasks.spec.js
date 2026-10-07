@@ -11,10 +11,15 @@ async function guest(page) {
 }
 test('原捷徑介面整合提醒：記錄、切換、重載、修改、完成及刪除', async ({ page }) => {
   await guest(page);
+  await expect(page.getByLabel('事項內容')).toHaveCount(0);
+  await page.getByRole('button', { name: '新增事項', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '新增提醒事項' })).toBeVisible();
   await page.getByLabel('事項內容').fill('下週一要訂便當');
   await expect(page.getByText('辨識到「下週一」', { exact: false })).toBeVisible();
   expect(await page.getByLabel('到期日期', { exact: true }).inputValue()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   await page.getByRole('button', { name: '記下來', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByLabel('事項內容')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '訂便當', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '我的捷徑', exact: true }).click();
   await expect(page.getByRole('button', { name: '新增捷徑', exact: true })).toBeVisible();
@@ -41,20 +46,47 @@ test('Android 尺寸可切換捷徑與提醒，樣式不依賴 CDN', async ({ pa
   await page.setViewportSize({ width: 393, height: 851 });
   await page.route('https://cdn.tailwindcss.com/**', route => route.abort());
   await guest(page);
+  await page.getByRole('button', { name: '新增事項', exact: true }).click();
   await page.getByLabel('事項內容').fill('記得買洗衣精');
+  const padding = await page.getByRole('button', { name: '記下來', exact: true }).evaluate(el => getComputedStyle(el).paddingLeft);
+  expect(parseFloat(padding)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/android-reminder-composer.png', fullPage: true });
   await page.getByRole('button', { name: '記下來', exact: true }).click();
   await expect(page.getByText('未指定到期日', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  const padding = await page.getByRole('button', { name: '記下來', exact: true }).evaluate(el => getComputedStyle(el).paddingLeft);
-  expect(parseFloat(padding)).toBeGreaterThan(0);
   await page.screenshot({ path: 'test-results/android-integrated.png', fullPage: true });
 });
 test('Windows 視窗：共用 Google 登入入口與捷徑分類', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await guest(page);
+  await page.getByRole('button', { name: '新增事項', exact: true }).click();
   await page.getByLabel('事項內容').fill('下週一要訂便當');
   await page.getByRole('button', { name: '記下來', exact: true }).click();
   await page.screenshot({ path: 'test-results/windows-integrated.png', fullPage: true });
   await expect(page.getByRole('button', { name: '使用 Google 帳號登入', exact: true })).toBeVisible();
   await expect(page.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+});
+
+test('新增表單與清單分開；取消／Escape 不寫入，從已完成篩選新增後回待辦', async ({ page }) => {
+  await guest(page);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: '新增事項', exact: true }).click();
+  await expect(page.getByLabel('事項內容')).toBeFocused();
+  await page.getByLabel('事項內容').fill('還沒要儲存');
+  await page.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '新增事項', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: '新增事項', exact: true }).click();
+  await expect(page.getByLabel('事項內容')).toHaveValue('');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: /^已完成/ }).click();
+  await page.getByRole('button', { name: '新增事項', exact: true }).click();
+  await page.getByLabel('事項內容').fill('補訂便當');
+  await page.getByRole('button', { name: '記下來', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^待辦事項/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: '補訂便當', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '還沒要儲存', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('事項內容')).toHaveCount(0);
 });
