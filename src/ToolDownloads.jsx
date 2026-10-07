@@ -3,12 +3,11 @@ import { Capacitor } from '@capacitor/core';
 import { ArrowDownToLine, Monitor, Smartphone, X } from 'lucide-react';
 import { compareVersions, RELEASES_URL, selectUpdate } from '../reminder-app/src/updates.js';
 
-const knownVersion = '0.3.0';
 const releasesPage = 'https://github.com/jush-website/link_app/releases';
-const base = `https://github.com/jush-website/link_app/releases/download/link-app-v${knownVersion}/`;
+const base = version => `https://github.com/jush-website/link_app/releases/download/link-app-v${version}/`;
 const knownDownloads = {
-  windows: { version: knownVersion, url: base + 'Download-LinkApp-Windows.cmd' },
-  android: { version: knownVersion, url: base + `LinkApp-${knownVersion}-android-debug.apk` },
+  windows: { version: '0.4.0', url: base('0.4.0') + 'Download-LinkApp-Windows.cmd' },
+  android: { version: '0.4.1', url: base('0.4.1') + 'LinkApp-0.4.1-android-debug.apk' },
 };
 const link = 'flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500';
 
@@ -38,7 +37,7 @@ function DownloadsDialog({ onClose }) {
         let complete = true;
         for (const platform of ['windows', 'android']) {
           const available = selectUpdate(releases, { platform, version: '0.0.0' });
-          if (available && compareVersions(available.version, knownVersion) >= 0) selected[platform] = available;
+          if (available && compareVersions(available.version, knownDownloads[platform].version) >= 0) selected[platform] = available;
           else complete = false;
         }
         if (!disposed) {
@@ -46,7 +45,7 @@ function DownloadsDialog({ onClose }) {
           if (!complete) setNotice('目前提供已發布的安裝包，其他版本可到「所有版本與說明」查看。');
         }
       } catch {
-        if (!disposed) setNotice('暫時無法查詢新版，仍可下載已發布的 0.3.0。');
+        if (!disposed) setNotice('暫時無法查詢新版，仍可下載已發布的安裝包。');
       } finally {
         clearTimeout(timer);
         if (!disposed) setChecking(false);
@@ -55,7 +54,7 @@ function DownloadsDialog({ onClose }) {
     return () => { disposed = true; clearTimeout(timer); controller.abort(); };
   }, []);
 
-  return <dialog ref={dialog} aria-labelledby="tool-downloads-title" onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === event.currentTarget) onClose(); }} className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl bg-white p-0 text-slate-800 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm">
+  return <dialog ref={dialog} aria-labelledby="tool-downloads-title" onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === event.currentTarget) onClose(); }} className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl bg-white p-0 text-slate-800 shadow-2xl backdrop:bg-slate-900/40 backdrop:backdrop-blur-sm">
     <div className="p-5 sm:p-7">
       <header className="flex items-start justify-between gap-3"><div><h2 id="tool-downloads-title" className="text-xl font-extrabold">下載桌面工具與手機 App</h2><p className="mt-2 text-sm text-slate-500">使用原本的 Google 帳號，同步捷徑與待辦提醒。</p></div><button type="button" aria-label="關閉工具下載" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50"><X size={20} /></button></header>
       <p role="status" className="mt-4 text-xs text-slate-500">{checking ? '正在查詢可下載的新版…' : notice || '已確認目前可下載的版本。'}</p>
