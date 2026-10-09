@@ -2,6 +2,8 @@
 
 此目錄負責原捷徑系統的原生打包。前端入口直接使用 ../src/main.jsx，不是另一套提醒 App。Google 登入、捷徑、資料夾和提醒共用 ../src/firebase.js 的 default Firebase app 及 UID。
 
+0.5.0 提醒改為複選星期（移除間隔天數）；「提醒設定」改名「設定」，Android 的更新移到「設定」視窗並在有新版時送出系統通知。Windows 與 Android 都提高為 0.5.0（Android versionCode 6）；正式附件上傳並發布 link-app-v0.5.0 後，再將網站下載視窗的已驗證 fallback 版本（src/ToolDownloads.jsx）改為 0.5.0。
+
 0.4.0 精簡手機導覽與卡片，捷徑操作收在「⋯」選單；提醒設定以獨立視窗開啟，清單位置不變。0.3.0 使用者可按「檢查更新」取得本版。
 
 0.4.1 為 Android 系統列邊界修正版，Windows 發行版維持 0.4.0。Android 使用 Capacitor 8 內建 SystemBars 的 native insetsHandling，搭配 viewport-fit=auto，由原生容器處理狀態列、display cutout、導覽列及鍵盤空間；不要再給 Web 層重複加同一份系統列 padding。共享介面的根節點使用容器百分比高度，頁面本身不捲動，內容區與超過可用高度的表單可捲動。
