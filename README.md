@@ -14,7 +14,7 @@ Android 0.4.1 由原生容器預留狀態列、鏡頭缺口、底部導覽列及
 
 ## 桌面／Android 版本檢查
 
-網站右下角的「下載工具」不需要登入，即可取得 Windows 下載工具與 Android APK。開啟下載視窗時查詢已發布的相容版本，查詢失敗仍保留已驗證的 Windows 0.4.0 與 Android 0.4.1 下載連結；視窗也提供 Android Google 登入的套件／SHA-1 設定及 Firebase／Google Cloud 入口。
+網站右下角的「下載工具」不需要登入，即可取得 Windows 下載工具與 Android APK。開啟下載視窗時查詢已發布的相容版本，查詢失敗仍保留已驗證的 Windows 0.4.0 與 Android 0.5.0 下載連結；視窗也提供 Android Google 登入的套件／SHA-1 設定及 Firebase／Google Cloud 入口。
 
 0.3.0 起，在啟動、回到 App 及每六小時自動比對 GitHub 已發布版本；也可按「檢查更新」。找到這台裝置可用的新版時提示版本與下載按鈕，不會因斷線而顯示「最新版」。網頁由 Vercel 部署更新，不顯示原生版本檢查。
 
