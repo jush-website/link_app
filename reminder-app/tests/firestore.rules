@@ -16,6 +16,9 @@ service cloud.firestore {
         && request.resource.data.intervalDays is int
         && request.resource.data.intervalDays >= 1
         && request.resource.data.intervalDays <= 30
+        && (!('weekdays' in request.resource.data) || (request.resource.data.weekdays is list
+          && request.resource.data.weekdays.size() > 0
+          && request.resource.data.weekdays.hasOnly([1, 2, 3, 4, 5, 6, 7])))
         && request.resource.data.reminderTime is string
         && request.resource.data.reminderTime.matches('([01][0-9]|2[0-3]):[0-5][0-9]');
     }

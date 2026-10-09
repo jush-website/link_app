@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseNote, nextReminder, reminderSeries, validateTask } from '../src/model.js';
+import { parseNote, nextReminder, reminderSeries, validateTask, weekdaysLabel } from '../src/model.js';
 
 const now = new Date(2026, 9, 7, 10, 30);
 const task = { title: '訂便當', dueDate: '2026-10-12', anchorDate: '2026-10-07', reminderTime: '09:00', intervalDays: 1, completed: false };
@@ -30,12 +30,24 @@ test('到期後仍提醒，完成後停止', () => {
   assert.equal(nextReminder({ ...task, completed: true }, now), null);
   assert.deepEqual(reminderSeries({ ...task, completed: true }, now), []);
 });
-test('自訂三天一次依記錄日對齊，生成的通知時刻不重複', () => {
-  const custom = { ...task, intervalDays: 3 };
-  const dates = reminderSeries(custom, now, 3);
-  assert.deepEqual(dates.map(date => date.getTime()), [new Date(2026, 9, 10, 9), new Date(2026, 9, 13, 9), new Date(2026, 9, 16, 9)].map(Number));
-  assert.equal(nextReminder(custom, new Date(2026, 9, 11, 8)).getTime(), new Date(2026, 9, 13, 9).getTime());
+test('只在勾選的星期提醒，生成的通知時刻不重複', () => {
+  // 2026-10-07 是週三；勾選週一、三、五。
+  const custom = { ...task, weekdays: [1, 3, 5] };
+  const dates = reminderSeries(custom, now, 4);
+  assert.deepEqual(dates.map(date => date.getTime()), [new Date(2026, 9, 9, 9), new Date(2026, 9, 12, 9), new Date(2026, 9, 14, 9), new Date(2026, 9, 16, 9)].map(Number));
+  assert.equal(nextReminder(custom, new Date(2026, 9, 7, 8)).getTime(), new Date(2026, 9, 7, 9).getTime());
+  assert.equal(nextReminder({ ...task, weekdays: [3] }, now).getTime(), new Date(2026, 9, 14, 9).getTime());
+  assert.equal(nextReminder({ ...task, weekdays: [7] }, now).getTime(), new Date(2026, 9, 11, 9).getTime());
 });
-test('拒絕空事項、非法時間與提醒間隔', () => {
-  for (const invalid of [{ title: '' }, { reminderTime: '25:00' }, { intervalDays: 0 }, { intervalDays: 1.5 }, { intervalDays: 31 }]) assert.throws(() => validateTask({ ...task, ...invalid }));
+test('舊資料沒有 weekdays 時每天提醒，不再依間隔天數', () => {
+  assert.equal(nextReminder({ ...task, intervalDays: 3 }, now).getTime(), new Date(2026, 9, 8, 9).getTime());
+});
+test('星期顯示文字', () => {
+  assert.equal(weekdaysLabel([1, 2, 3, 4, 5, 6, 7]), '每天');
+  assert.equal(weekdaysLabel([5, 1, 2, 3, 4]), '週一至週五');
+  assert.equal(weekdaysLabel([6, 7]), '週末');
+  assert.equal(weekdaysLabel([1, 3, 7]), '每週一、三、日');
+});
+test('拒絕空事項、非法時間與星期', () => {
+  for (const invalid of [{ title: '' }, { reminderTime: '25:00' }, { weekdays: [] }, { weekdays: [0] }, { weekdays: [8] }, { weekdays: [1.5] }, { weekdays: [1, 1] }, { weekdays: '1' }]) assert.throws(() => validateTask({ ...task, ...invalid }));
 });

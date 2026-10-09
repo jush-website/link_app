@@ -18,7 +18,9 @@ import androidx.core.content.ContextCompat;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import java.time.DayOfWeek;
 import java.time.ZoneId;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,12 +44,21 @@ public class ReminderReceiver extends BroadcastReceiver {
         }
     }
 
+    // weekdays 使用 ISO 編號 1 = 週一 … 7 = 週日；舊資料沒有此欄位時每天提醒。
+    private static EnumSet<DayOfWeek> weekdays(JSONObject task) throws JSONException {
+        JSONArray values = task.optJSONArray("weekdays");
+        if (values == null) return EnumSet.allOf(DayOfWeek.class);
+        EnumSet<DayOfWeek> days = EnumSet.noneOf(DayOfWeek.class);
+        for (int index = 0; index < values.length(); index++) days.add(DayOfWeek.of(values.getInt(index)));
+        return days;
+    }
+
     private static long nextTime(JSONObject task, long now) throws JSONException {
-        return ReminderTime.nextAfter(task.getString("anchorDate"), task.getString("reminderTime"), task.getInt("intervalDays"), now, ZoneId.systemDefault());
+        return ReminderTime.nextAfter(task.getString("reminderTime"), weekdays(task), now, ZoneId.systemDefault());
     }
 
     private static boolean unchanged(JSONObject first, JSONObject second) {
-        for (String key : new String[] {"title", "dueDate", "anchorDate", "reminderTime", "intervalDays"}) {
+        for (String key : new String[] {"title", "dueDate", "anchorDate", "reminderTime", "weekdays"}) {
             if (!first.optString(key).equals(second.optString(key))) return false;
         }
         return true;

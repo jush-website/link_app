@@ -26,3 +26,8 @@ test('編輯提醒時間會重排', () => {
   const changed = reconcileSchedules([{ ...task, reminderTime: '10:00' }], first, new Date(2026, 9, 7, 8));
   assert.equal(changed[0].nextAt, new Date(2026, 9, 7, 10).getTime());
 });
+test('修改提醒星期會重排', () => {
+  const first = reconcileSchedules([task], [], new Date(2026, 9, 7, 8));
+  const changed = reconcileSchedules([{ ...task, weekdays: [5] }], first, new Date(2026, 9, 7, 8));
+  assert.equal(changed[0].nextAt, new Date(2026, 9, 9, 9).getTime());
+});

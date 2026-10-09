@@ -30,9 +30,12 @@ test('原捷徑介面整合提醒：記錄、切換、重載、修改、完成�
   await page.getByRole('button', { name: '編輯「訂便當」' }).click();
   await page.getByLabel('事項內容').fill('訂 12 個便當');
   await page.getByLabel('提醒時間', { exact: true }).fill('10:30');
-  await page.getByLabel('提醒間隔天數').fill('3');
+  await page.getByRole('button', { name: '週一至週五', exact: true }).click();
+  await page.getByRole('button', { name: '週二', exact: true }).click();
+  await page.getByRole('button', { name: '週四', exact: true }).click();
+  await expect(page.getByRole('button', { name: '週三', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '儲存修改', exact: true }).click();
-  await expect(page.getByText('每 3 天 10:30', { exact: true })).toBeVisible();
+  await expect(page.getByText('每週一、三、五 10:30', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '完成「訂 12 個便當」' }).click();
   await page.getByRole('button', { name: /^已完成/ }).click();
   await expect(page.getByRole('heading', { name: '訂 12 個便當', exact: true })).toBeVisible();

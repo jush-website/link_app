@@ -10,7 +10,8 @@
 
 1. 使用原本的 Google 帳號登入，在「我的捷徑」與「待辦提醒」切換。
 2. 清單與填寫表單分開，按「新增事項」或編輯才開啟表單，儲存後關閉。輸入「下週一要訂便當」，確認到期日。也支援今天、明天、後天、週幾、10/12、10月12日、2026-10-12；無日期事項也可儲存。
-3. 預設每天 09:00 提醒直到完成。每件事情可設定提醒時間和 1–30 天間隔；到期後仍提醒，勾選完成才停止。
+3. 預設每天 09:00 提醒直到完成。每件事情可設定提醒時間，並複選要提醒的星期（週一～週日，另有「每天」「週一至週五」快速選項）；到期後仍提醒，勾選完成才停止。
+   資料以 weekdays 陣列保存（ISO 編號 1 = 週一 … 7 = 週日）。沒有 weekdays 的舊事項視為每天提醒，原本的間隔天數不再使用；新存檔仍寫入 intervalDays: 1，讓舊版 App 與既有 Firestore 規則照常運作（舊版 App 會變成每天提醒）。
 4. 開啟提醒設定、允許通知並送出測試通知；Android 可再允許精確提醒。
 5. 訪客事項沿用本機儲存鍵；Google 登入後可按「匯入本機事項」。不自動混入其他使用者資料。
 
@@ -67,6 +68,9 @@ match /artifacts/my-shortcut-app/users/{uid}/reminders/{taskId} {
     && request.resource.data.intervalDays is int
     && request.resource.data.intervalDays >= 1
     && request.resource.data.intervalDays <= 30
+    && (!('weekdays' in request.resource.data) || (request.resource.data.weekdays is list
+      && request.resource.data.weekdays.size() > 0
+      && request.resource.data.weekdays.hasOnly([1, 2, 3, 4, 5, 6, 7])))
     && request.resource.data.reminderTime is string
     && request.resource.data.reminderTime.matches('([01][0-9]|2[0-3]):[0-5][0-9]');
 }
