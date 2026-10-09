@@ -1,0 +1,103 @@
+# 手機上即可發布 Android 新版：GitHub → Actions → Android release → Run workflow。
+# 版本取自 reminder-app/package.json，須與 android/app/build.gradle 的 versionName 相同。
+# 需要的 Secrets：ANDROID_KEYSTORE_BASE64（簽章檔 base64）、ANDROID_KEYSTORE_PASSWORD。
+name: Android release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: Release 說明（可留空）
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      # 正式簽章憑證的 SHA-256；簽出的 APK 不符時停止發布。
+      EXPECTED_CERT_SHA256: 4dd7f8f664ad22b02da444f30abf8681ba02aa2b011b913eac6a39b6b4700cf3
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            reminder-app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Check version
+        run: |
+          version=$(node -p "require('./reminder-app/package.json').version")
+          if ! grep -q "versionName \"$version\"" reminder-app/android/app/build.gradle; then
+            echo "::error::reminder-app/package.json 的版本 $version 與 Android versionName 不同。"
+            exit 1
+          fi
+          if gh release view "link-app-v$version" >/dev/null 2>&1; then
+            echo "::error::link-app-v$version 已經存在，請先提高版本號。"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Check signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::請先在 Settings → Secrets and variables → Actions 設定 ANDROID_KEYSTORE_BASE64 與 ANDROID_KEYSTORE_PASSWORD。"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+      - run: npm ci
+        working-directory: reminder-app
+      - run: npm run android:sync
+        working-directory: reminder-app
+      - run: ./gradlew assembleRelease
+        working-directory: reminder-app/android
+
+      - name: Sign APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          keystore="$RUNNER_TEMP/release.jks"
+          apk="$RUNNER_TEMP/LinkApp-$VERSION-android.apk"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+          "$tools/zipalign" -p -f 4 reminder-app/android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$keystore" --ks-pass env:KEYSTORE_PASSWORD --ks-key-alias linkapp --out "$apk" "$RUNNER_TEMP/aligned.apk"
+          rm -f "$keystore"
+          "$tools/apksigner" verify --print-certs "$apk" | tee "$RUNNER_TEMP/certs.txt"
+          if ! grep -qi "SHA-256 digest: $EXPECTED_CERT_SHA256" "$RUNNER_TEMP/certs.txt"; then
+            echo "::error::APK 簽章與預期的正式簽章不符，請檢查 Secrets。"
+            exit 1
+          fi
+          echo "APK=$apk" >> "$GITHUB_ENV"
+
+      # 先建立 draft 並上傳 APK，成功後才公開，App 不會偵測到缺少安裝包的版本。
+      - name: Publish release
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          tag="link-app-v$VERSION"
+          body="${NOTES:-Android $VERSION。下載 APK 後直接覆蓋安裝，保留帳號與事項。}"
+          gh release create "$tag" "$APK" --target "$GITHUB_SHA" --title "link_app Android $VERSION" --notes "$body" --prerelease --draft
+          gh release edit "$tag" --draft=false
