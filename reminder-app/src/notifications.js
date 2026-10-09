@@ -3,6 +3,8 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { validateTask } from './model.js';
 
 const scheduler = registerPlugin('ReminderScheduler');
+const UPDATE_NOTIFICATION_ID = 2147483601;
+const UPDATE_NOTIFIED_KEY = 'link-app-update-notified';
 let queue = Promise.resolve();
 
 export async function notificationStatus() {
@@ -58,4 +60,23 @@ export async function testNotification() {
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     new Notification('捷徑與提醒 · 測試提醒', { body: '通知已啟用。瀏覽器試用需保持頁面開啟。' });
   } else throw new Error('請先允許通知。');
+}
+
+// 每個新版只通知一次；尚未允許通知時不記錄，允許後下次檢查再通知。
+export async function notifyAppUpdate(candidate) {
+  if (Capacitor.getPlatform() !== 'android') return false;
+  let notified = null;
+  try { notified = localStorage.getItem(UPDATE_NOTIFIED_KEY); } catch { /* 無法讀取時照常通知。 */ }
+  if (notified === candidate.version) return false;
+  const { display } = await LocalNotifications.checkPermissions();
+  if (display !== 'granted') return false;
+  await LocalNotifications.schedule({ notifications: [{ id: UPDATE_NOTIFICATION_ID, title: '捷徑與提醒 · 有新版本', body: `新版 ${candidate.version} 可以更新，點此開啟「設定」下載。`, extra: { kind: 'app-update' } }] });
+  try { localStorage.setItem(UPDATE_NOTIFIED_KEY, candidate.version); } catch { /* 下次檢查可能再通知一次。 */ }
+  return true;
+}
+
+export function onAppUpdateNotificationTap(callback) {
+  return LocalNotifications.addListener('localNotificationActionPerformed', event => {
+    if (event.notification?.extra?.kind === 'app-update') callback();
+  });
 }

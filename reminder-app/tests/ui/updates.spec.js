@@ -59,3 +59,31 @@ test('無新版／離線／手動重試狀態明確，手機寬度不溢出', as
   await expect(updates.getByText('目前已是最新版本。', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test('手機 App 的更新放在「設定」，有新版時設定按鈕顯示紅點，不顯示右下角浮動提示', async ({ page }) => {
+  const apk = 'https://github.com/jush-website/link_app/releases/download/link-app-v0.5.0/LinkApp-0.5.0-android-debug.apk';
+  await page.setViewportSize({ width: 393, height: 851 });
+  await page.route('https://identitytoolkit.googleapis.com/**', route => route.abort());
+  // 以 getAppInfo 模擬 Android 版本資訊；Capacitor 原生通知需在實機驗證。
+  await page.addInitScript(() => {
+    window.reminderDesktop = {
+      getAppInfo: async () => ({ version: '0.4.1', platform: 'android' }),
+      openUpdate: async url => { window.updateDownload = url; },
+      schedule: async () => ({}), testNotification: async () => ({}),
+    };
+  });
+  await page.route(api, route => route.fulfill({ json: [{ tag_name: 'link-app-v0.5.0', draft: false, prerelease: false, assets: [{ name: 'LinkApp-0.5.0-android-debug.apk', size: 4000, state: 'uploaded', browser_download_url: apk }] }] }));
+  await page.goto('/');
+  await page.getByRole('button', { name: '先以訪客身分體驗' }).click();
+  await page.getByRole('button', { name: /^待辦提醒/ }).click();
+  await expect(page.getByRole('button', { name: '設定（有新版本）', exact: true })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: '應用程式更新' })).toHaveCount(0);
+  await page.getByRole('button', { name: '設定（有新版本）', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: '設定' });
+  await expect(settings.getByRole('heading', { name: '有新版 0.5.0' })).toBeVisible();
+  await expect(settings.getByText('目前版本 0.4.1', { exact: false })).toBeVisible();
+  await settings.getByRole('button', { name: '下載更新' }).click();
+  await expect.poll(() => page.evaluate(() => window.updateDownload)).toBe(apk);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/android-settings-update.png' });
+});

@@ -94,7 +94,7 @@ test('新增表單與清單分開；取消／Escape 不寫入，從已完成篩�
   await expect(page.getByLabel('事項內容')).toHaveCount(0);
 });
 
-test('窄版只顯示一個導覽選單，提醒設定獨立開啟且不推移清單', async ({ page }) => {
+test('窄版只顯示一個導覽選單，設定獨立開啟且不推移清單', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await guest(page);
   await expect(page.getByRole('button', { name: '開啟功能選單', exact: true })).toHaveCount(1);
@@ -105,8 +105,8 @@ test('窄版只顯示一個導覽選單，提醒設定獨立開啟且不推移�
   const task = page.getByRole('article');
   const before = await task.boundingBox();
   expect(before.y + before.height).toBeLessThan(600);
-  await page.getByRole('button', { name: '提醒設定', exact: true }).click();
-  const settings = page.getByRole('dialog', { name: '提醒與同步設定' });
+  await page.getByRole('button', { name: '設定', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: '設定' });
   await expect(settings).toBeVisible();
   await expect(settings.getByRole('button', { name: '送出測試通知' })).toBeVisible();
   const during = await task.boundingBox();
@@ -114,7 +114,7 @@ test('窄版只顯示一個導覽選單，提醒設定獨立開啟且不推移�
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.keyboard.press('Escape');
   await expect(settings).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '提醒設定', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: '設定', exact: true })).toBeFocused();
   await page.getByRole('button', { name: '我的捷徑', exact: true }).click();
   await expect(page.getByRole('button', { name: '開啟功能選單', exact: true })).toHaveCount(1);
 });
