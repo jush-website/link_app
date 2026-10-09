@@ -29,7 +29,7 @@ export function UpdateSettings() {
   </section>;
 }
 
-// Windows 保留右下角的更新提示。
+// Windows 的更新提示放左下角，避免擋住右下角的「新增事項」。
 export default function AppUpdates() {
   const { info, result, checking } = useAppUpdates();
   const [open, setOpen] = useState(false);
@@ -39,7 +39,7 @@ export default function AppUpdates() {
   if (!info || info.platform === 'android') return null;
   const candidate = result?.candidate;
   const expanded = open || (!!candidate && dismissed !== candidate.version);
-  return <aside aria-label="應用程式更新" className="fixed bottom-4 right-4 z-[60] max-w-[calc(100vw-2rem)]">
+  return <aside aria-label="應用程式更新" className="fixed bottom-4 left-4 z-[60] max-w-[calc(100vw-2rem)]">
     {expanded ? <section className="w-80 max-w-full rounded-2xl border border-indigo-100 bg-white p-4 shadow-xl">
       <div className="flex items-start justify-between gap-3"><h2 className="font-bold text-slate-800">{candidate ? `有新版 ${candidate.version}` : '應用程式更新'}</h2><button aria-label="收起更新提示" className="rounded-lg p-1 text-slate-400 hover:bg-slate-50" onClick={() => { setOpen(false); setDismissed(candidate?.version ?? ''); }}><X size={17} /></button></div>
       <UpdateDetails info={info} result={result} checking={checking} />
