@@ -37,6 +37,8 @@ Android 的更新改放在待辦提醒的「設定」視窗（原「提醒設定
 
 發布新版時須同步提高 package.json／lockfile 的 version、Android versionName 與 versionCode，保留同一簽章。使用 tag link-app-vX.Y.Z，先建立 draft，上傳並驗證平台安裝包後才 publish；Windows helper 名稱維持 Download-LinkApp-Windows.cmd，APK 使用 LinkApp-X.Y.Z-android-debug.apk（或 LinkApp-X.Y.Z-android.apk）。此偵測直接使用 Releases metadata，不需維護另一個更新 manifest。
 
+Android 也可在手機上發布：GitHub → Actions →「Android release」→ Run workflow。流程依 package.json 版本雲端打包 release APK，用 Secrets 的 ANDROID_KEYSTORE_BASE64／ANDROID_KEYSTORE_PASSWORD 簽章（別名 linkapp），核對憑證 SHA-256 後建立 link-app-vX.Y.Z（先 draft 上傳 LinkApp-X.Y.Z-android.apk，再公開）。0.5.0 起改用此正式簽章（SHA-1 5A:C8:FD:56:4D:FE:E1:60:8E:EB:6B:E9:D7:B2:58:04:3D:60:9C:D9），由 0.4.x 升級需先解除安裝一次，並在 Firebase 登記新指紋。
+
 ## Android Google 登入設定
 
 到 [Firebase 專案設定](https://console.firebase.google.com/project/link-4339d/settings/general)，在同一專案註冊 Android App：
