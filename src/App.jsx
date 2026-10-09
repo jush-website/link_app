@@ -6,6 +6,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, writeBatch }
 import { auth, db, appId, ensureGuestAuth } from './firebase.js';
 import { signInGoogle, openShortcut, googleLoginError } from './platform.js';
 import RemindersPanel from './RemindersPanel.jsx';
+import ToolDownloads from './ToolDownloads.jsx';
 import AppDialog from './AppDialog.jsx';
 import { useTasks } from '../reminder-app/src/useTasks.js';
 import { useReminderNotifications } from './useReminderNotifications.js';
@@ -386,6 +387,7 @@ export default function App() {
   if (!showMainApp) {
     return (
       <div className="h-full min-h-0 bg-[#F8FAFC] flex flex-col items-center p-4 relative overflow-y-auto">
+        <ToolDownloads />
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob"></div>
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[40%] h-[40%] bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-blob animation-delay-4000"></div>
@@ -491,6 +493,7 @@ export default function App() {
   // --- 畫面 2：主應用程式 ---
   return (
     <div className="flex h-full min-h-0 bg-white text-slate-800 selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden">
+      {view !== 'reminders' && <ToolDownloads />}
       {/* 主畫面動態光斑背景 */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
         <div className="absolute -top-24 right-[-10%] w-[36rem] h-[36rem] bg-indigo-200/50 rounded-full blur-3xl animate-blob"></div>

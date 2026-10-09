@@ -69,8 +69,18 @@ function DownloadsDialog({ onClose }) {
   </dialog>;
 }
 
-export default function ToolDownloads() {
+function canDownload() {
+  return !Capacitor.isNativePlatform() && !window.reminderDesktop;
+}
+
+export function DownloadsButton({ className }) {
   const [open, setOpen] = useState(false);
-  if (Capacitor.isNativePlatform() || window.reminderDesktop) return null;
-  return <aside aria-label="工具下載" className="fixed bottom-4 right-4 z-[60] max-w-[calc(100vw-2rem)]"><button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2.5 text-sm font-bold text-indigo-600 shadow-lg hover:bg-indigo-50"><ArrowDownToLine size={17} />下載工具</button>{open && <DownloadsDialog onClose={() => setOpen(false)} />}</aside>;
+  if (!canDownload()) return null;
+  return <><button type="button" onClick={() => setOpen(true)} className={className}><ArrowDownToLine size={17} />下載工具</button>{open && <DownloadsDialog onClose={() => setOpen(false)} />}</>;
+}
+
+// 待辦提醒頁的下載工具放在頂列，其他畫面維持右下角浮動按鈕。
+export default function ToolDownloads() {
+  if (!canDownload()) return null;
+  return <aside aria-label="工具下載" className="fixed bottom-4 right-4 z-[60] max-w-[calc(100vw-2rem)]"><DownloadsButton className="flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2.5 text-sm font-bold text-indigo-600 shadow-lg hover:bg-indigo-50" /></aside>;
 }

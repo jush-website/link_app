@@ -23,6 +23,17 @@ test('網站不需登入即可下載平台最新版，內含 Android 登入設�
   await page.getByRole('button', { name: '先以訪客身分體驗' }).click();
   await page.getByRole('button', { name: '下載工具', exact: true }).click();
   await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  // 待辦提醒頁：下載工具在頂列，新增事項改為右下角浮動按鈕。
+  await page.getByRole('button', { name: /^待辦提醒/ }).click();
+  await expect(page.getByRole('complementary', { name: '工具下載' })).toHaveCount(0);
+  const header = page.getByRole('region', { name: '待辦提醒' }).locator('header');
+  await header.getByRole('button', { name: '下載工具', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  const add = page.getByRole('button', { name: '新增事項', exact: true });
+  await expect(add).toHaveCSS('position', 'fixed');
+  await expect(header.getByRole('button', { name: '新增事項', exact: true })).toHaveCount(0);
 });
 
 test('查詢失敗仍可下載已發布版，393px 手機版不溢出且可關閉', async ({ page }) => {
