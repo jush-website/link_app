@@ -44,16 +44,17 @@ Android 也可在手機上發布：GitHub → Actions →「Android release」�
 到 [Firebase 專案設定](https://console.firebase.google.com/project/link-4339d/settings/general)，在同一專案註冊 Android App：
 
 - 套件名稱：com.jush.remember
-- 此雲端測試版 debug 簽章 SHA-1：
-  4C:04:2D:C9:C2:D1:2B:B5:64:C7:AF:EE:39:99:7B:97:34:DC:07:5B
+- 0.5.0 起的正式簽章 SHA-1：
+  5A:C8:FD:56:4D:FE:E1:60:8E:EB:6B:E9:D7:B2:58:04:3D:60:9C:D9
 - SHA-256：
-  FB:F2:84:4A:76:96:C9:67:27:D7:4D:76:A2:4C:A7:90:C7:22:18:92:2F:A6:CD:AB:D3:F7:A3:EE:27:90:5D:E8
+  4D:D7:F8:F6:64:AD:22:B0:2D:A4:44:F3:0A:BF:86:81:BA:02:AA:2B:01:1B:91:3E:AC:6A:39:B6:B4:70:0C:F3
+- 0.4.x 以前的 debug 簽章 SHA-1（簽章檔已遺失，僅供辨識舊版）：4C:04:2D:C9:C2:D1:2B:B5:64:C7:AF:EE:39:99:7B:97:34:DC:07:5B
 
 Google provider 沿用已啟用的專案設定。在 Google Cloud 的 OAuth clients 確認 Android client 的套件及 SHA-1 與上面相同，Web client 使用同一專案原 Google provider 的 client ID（公開設定在 ../src/firebase.js）。
 
 此版使用 Android Credential Manager 取得 Google ID token，再透過共用 Firebase Web Auth 登入，和網頁使用相同 UID。未使用內嵌 WebView 跑 Google 登入，也不需要 Email／密碼或重設原 Google 帳號密碼。這個實作不需要 google-services.json，因為未使用 Firebase Android Auth SDK。
 
-**尚未驗證真實 Android Google 登入。** 套件／SHA 設定不能由公開 API key 自動完成；未設定時登入會失敗。正式簽章或另一台電腦的 debug keystore 會有不同 SHA，需另外登記。Debug keystore 不納入 Git；需要正式上架時另使用自己的簽章。
+**尚未驗證真實 Android Google 登入。** 套件／SHA 設定不能由公開 API key 自動完成；未設定時登入會失敗。在本機用 debug keystore 打包會有不同 SHA，且無法覆蓋安裝正式版；發布請使用「Android release」流程。簽章檔只存在 GitHub Secrets 與擁有者的備份，不納入 Git。
 
 ## Firestore 規則
 
