@@ -1,7 +1,7 @@
 import { nextReminder, validateTask } from './model.js';
 
 function fingerprint(task) {
-  return JSON.stringify([task.title, task.dueDate, task.reminderTime, task.intervalDays, task.anchorDate]);
+  return JSON.stringify([task.title, task.dueDate, task.reminderTime, task.weekdays ?? null, task.anchorDate]);
 }
 
 export function reconcileSchedules(tasks, previous, now = new Date()) {

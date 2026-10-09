@@ -48,7 +48,7 @@ test('手機捷徑卡片精簡，操作選單可編輯、移動及刪除；提�
   const task = page.getByRole('article');
   expect((await task.boundingBox()).y).toBeLessThan(220);
   const before = await task.boundingBox();
-  await page.getByRole('button', { name: '提醒設定', exact: true }).click();
+  await page.getByRole('button', { name: '設定', exact: true }).click();
   expect((await task.boundingBox()).y).toBe(before.y);
   await page.keyboard.press('Escape');
   await page.screenshot({ path: 'test-results/compact-mobile-reminders.png' });

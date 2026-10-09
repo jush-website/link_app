@@ -9,6 +9,7 @@ import RemindersPanel from './RemindersPanel.jsx';
 import AppDialog from './AppDialog.jsx';
 import { useTasks } from '../reminder-app/src/useTasks.js';
 import { useReminderNotifications } from './useReminderNotifications.js';
+import { onSettingsRequest, useMobileUpdateAvailable } from './updateStore.js';
 
 // 寫入滑鼠座標給 .spotlight-card 的光暈用（直接操作 CSS 變數，不經過 React state）
 const handleSpotlight = (e) => {
@@ -40,6 +41,8 @@ export default function App() {
   const reminders = useTasks();
   useReminderNotifications(reminders);
   const [view, setView] = useState('links');
+  const updateAvailable = useMobileUpdateAvailable();
+  useEffect(() => onSettingsRequest(() => setView('reminders')), []);
   const [shortcutActions, setShortcutActions] = useState(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -617,7 +620,7 @@ export default function App() {
           <div className="md:hidden sticky top-0 z-20 flex items-center gap-1 mb-3 -mx-3 border-b border-slate-200/60 bg-slate-50/95 px-3 py-1.5 backdrop-blur" role="group" aria-label="切換功能">
             <button type="button" onClick={() => setIsSidebarOpen(true)} aria-label="開啟功能選單" aria-expanded={isSidebarOpen} className="flex size-11 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-white"><Menu size={20} /></button>
             <button type="button" aria-pressed={view === 'links'} onClick={() => setView('links')} className={`min-h-11 flex-1 px-3 py-2 rounded-xl text-sm font-bold ${view === 'links' ? 'bg-indigo-100 text-indigo-700' : 'bg-white text-slate-500'}`}>我的捷徑</button>
-            <button type="button" aria-pressed={view === 'reminders'} onClick={() => setView('reminders')} className={`min-h-11 flex-1 px-3 py-2 rounded-xl text-sm font-bold ${view === 'reminders' ? 'bg-indigo-100 text-indigo-700' : 'bg-white text-slate-500'}`}>待辦提醒</button>
+            <button type="button" aria-pressed={view === 'reminders'} onClick={() => setView('reminders')} className={`min-h-11 flex-1 px-3 py-2 rounded-xl text-sm font-bold ${view === 'reminders' ? 'bg-indigo-100 text-indigo-700' : 'bg-white text-slate-500'}`}>待辦提醒{updateAvailable && <span aria-hidden="true" className="ml-1.5 inline-block size-2 rounded-full bg-rose-500 align-middle" />}</button>
           </div>
           {view === 'reminders' ? <RemindersPanel store={reminders} onGoogleLogin={handleGoogleLogin} loggingIn={loggingIn} /> : <>
           {/* 極簡單行頂部導覽列 */}

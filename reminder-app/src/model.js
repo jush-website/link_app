@@ -1,5 +1,24 @@
 export const DEFAULT_TIME = '09:00';
-export const DEFAULT_INTERVAL = 1;
+// 星期採 ISO 編號：1 = 週一 … 7 = 週日，與 Android java.time.DayOfWeek 相同。
+export const ALL_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
+const WEEKDAY_NAMES = ['一', '二', '三', '四', '五', '六', '日'];
+
+// 舊資料沒有 weekdays 時視為每天提醒。
+export function taskWeekdays(task) {
+  return task.weekdays ?? ALL_WEEKDAYS;
+}
+
+export function weekdayName(day) {
+  return WEEKDAY_NAMES[day - 1];
+}
+
+export function weekdaysLabel(weekdays) {
+  const days = [...weekdays].sort((a, b) => a - b);
+  if (days.length === 7) return '每天';
+  if (days.join() === '1,2,3,4,5') return '週一至週五';
+  if (days.join() === '6,7') return '週末';
+  return `每週${days.map(weekdayName).join('、')}`;
+}
 
 export function dateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -53,7 +72,8 @@ export function validateTask(task) {
   if (typeof task.title !== 'string' || !task.title.trim() || task.title.length > 200) throw new Error('請填寫 1–200 字的事項。');
   if (task.dueDate && !localDate(task.dueDate)) throw new Error('請填寫有效的到期日期。');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(task.reminderTime)) throw new Error('請選擇有效的提醒時間。');
-  if (!Number.isInteger(task.intervalDays) || task.intervalDays < 1 || task.intervalDays > 30) throw new Error('提醒間隔須為 1–30 天。');
+  const weekdays = taskWeekdays(task);
+  if (!Array.isArray(weekdays) || !weekdays.length || weekdays.length > 7 || new Set(weekdays).size !== weekdays.length || !weekdays.every(day => Number.isInteger(day) && day >= 1 && day <= 7)) throw new Error('請至少選擇一個提醒的星期。');
   if (!localDate(task.anchorDate)) throw new Error('提醒起始日期無效。');
   return task;
 }
@@ -63,24 +83,24 @@ export function nextReminder(task, now = new Date()) {
   if (task.completed) return null;
   validateTask(task);
   const [hour, minute] = task.reminderTime.split(':').map(Number);
-  const anchor = localDate(task.anchorDate);
+  const weekdays = taskWeekdays(task);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const calendarNumber = date => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
-  const elapsed = Math.max(0, calendarNumber(today) - calendarNumber(anchor));
-  let date = addDays(anchor, Math.floor(elapsed / task.intervalDays) * task.intervalDays);
-  date.setHours(hour, minute, 0, 0);
-  if (date <= now) date = addDays(date, task.intervalDays);
-  return date;
+  for (let offset = 0; offset <= 7; offset++) {
+    const date = addDays(today, offset);
+    date.setHours(hour, minute, 0, 0);
+    if (date > now && weekdays.includes(date.getDay() || 7)) return date;
+  }
+  return null;
 }
 
 export function reminderSeries(task, now = new Date(), count = 60) {
-  const first = nextReminder(task, now);
-  if (!first) return [];
-  return Array.from({ length: count }, (_, index) => addDays(first, index * task.intervalDays));
+  const dates = [];
+  for (let next = nextReminder(task, now); next && dates.length < count; next = nextReminder(task, next)) dates.push(next);
+  return dates;
 }
 
 export function reminderBody(task) {
-  return `${task.dueDate ? `到期日 ${task.dueDate}。` : ''}每${task.intervalDays === 1 ? '天' : `${task.intervalDays}天`} ${task.reminderTime} 提醒，完成後停止。`;
+  return `${task.dueDate ? `到期日 ${task.dueDate}。` : ''}${weekdaysLabel(taskWeekdays(task))} ${task.reminderTime} 提醒，完成後停止。`;
 }
 
 export function dueLabel(task, now = new Date()) {

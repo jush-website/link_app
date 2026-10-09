@@ -46,12 +46,12 @@ test('Google 帳號共用捷徑、資料夾及提醒，兩端修改和完成同�
     await mobile.setOffline(true);
     await second.getByRole('button', { name: '編輯「訂便當」' }).click();
     await second.getByLabel('事項內容').fill('訂 12 個便當');
-    await second.getByLabel('提醒間隔天數').fill('3');
+    await second.getByRole('button', { name: '週日', exact: true }).click();
     await second.getByRole('button', { name: '儲存修改', exact: true }).click();
     await expect(second.getByRole('heading', { name: '訂 12 個便當', exact: true })).toBeVisible();
     await expect(second.getByText('已儲存 · 等待同步', { exact: true })).toBeVisible();
     await mobile.setOffline(false);
-    await expect.poll(() => first.evaluate(() => window.latestSchedules?.[0]?.intervalDays)).toBe(3);
+    await expect.poll(() => first.evaluate(() => window.latestSchedules?.[0]?.weekdays?.join())).toBe('1,2,3,4,5,6');
     await authenticate(other, 'other-'+Date.now()+'@demo.invalid'); await reminders(other);
     await expect(other.getByRole('heading', { name: '訂 12 個便當', exact: true })).toHaveCount(0);
     const denied = await other.evaluate(async uid => {
